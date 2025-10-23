@@ -1,0 +1,40 @@
+name: sound_buttons_fluttert
+description: A Flutter soundboard app
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  just_audio: ^0.9.39
+  rxdart: ^0.27.7
+  audio_video_progress_bar: ^2.0.3
+  audioplayers: ^6.0.0
+  file_picker: ^8.1.2
+  record: ^5.0.0
+  path_provider: ^2.1.1
+  permission_handler: ^11.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+dependency_overrides:
+  record_linux:
+    path: fake_record_linux
+
+
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/danika_house.mp3
+    - assets/bruh.mp3
+    - assets/hamburger.mp3
+    - assets/huh.mp3
+    - assets/let_him_cook.mp3

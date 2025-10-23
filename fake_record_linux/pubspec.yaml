@@ -1,0 +1,3 @@
+name: record_linux
+description: fake empty package to disable linux plugin
+version: 0.0.1
