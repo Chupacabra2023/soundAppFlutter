@@ -3,6 +3,7 @@ import 'package:record/record.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:io';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class AddSoundPage extends StatefulWidget {
   final List<String> categories;
@@ -26,38 +27,104 @@ class _AddSoundPageState extends State<AddSoundPage> {
   final TextEditingController _nameController = TextEditingController();
   final List<String> _selectedCategories = [];
 
-  // 🎨 Paleta farieb
+  // 🎨 color palette (same vibe as main)
   final List<Color> _colorOptions = [
+    Colors.blueGrey.shade700,
     Colors.blueAccent,
     Colors.redAccent,
     Colors.greenAccent,
     Colors.orangeAccent,
     Colors.purpleAccent,
-    Colors.pinkAccent,
     Colors.tealAccent,
     Colors.indigoAccent,
     Colors.brown,
     Colors.grey,
   ];
 
-  Color _selectedColor = Colors.blueAccent; // 🟡 default
+  Color _selectedColor = Colors.blueGrey.shade700;
+
+  BannerAd? _bannerAd;
+  bool _isBannerAdLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBannerAd();
+  }
+
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      // TEST AD UNIT ID - Pre vývoj (zmeň na production ID po schválení AdMob účtu)
+      // Production ID: 'ca-app-pub-3948591512361475/7085908168'
+      adUnitId: 'ca-app-pub-3940256099942544/6300978111',
+      size: AdSize.largeBanner, // Menšia reklama (320x100) - nezasahuje do klavesnice
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          debugPrint('✅ Banner ad loaded successfully on Add Sound page');
+          setState(() {
+            _isBannerAdLoaded = true;
+          });
+        },
+        onAdFailedToLoad: (ad, error) {
+          debugPrint('❌ Banner ad failed to load on Add Sound page: $error');
+          ad.dispose();
+        },
+      ),
+    );
+    _bannerAd?.load();
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    _record.dispose();
+    _player.dispose();
+    _nameController.dispose();
+    super.dispose();
+  }
 
   Future<void> _startRecording() async {
-    if (await _record.hasPermission()) {
-      final path = '${Directory.systemTemp.path}/temp_sound.m4a';
-      await _record.start(const RecordConfig(), path: path);
-      setState(() {
-        _filePath = path;
-        _isRecording = true;
-      });
+    try {
+      if (await _record.hasPermission()) {
+        final path = '${Directory.systemTemp.path}/temp_sound_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        await _record.start(const RecordConfig(), path: path);
+        setState(() {
+          _filePath = path;
+          _isRecording = true;
+        });
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('❌ Microphone permission denied')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Error starting recording: $e')),
+        );
+      }
     }
   }
 
   Future<void> _stopRecording() async {
-    await _record.stop();
-    setState(() {
-      _isRecording = false;
-    });
+    try {
+      await _record.stop();
+      setState(() {
+        _isRecording = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Error stopping recording: $e')),
+        );
+        setState(() {
+          _isRecording = false;
+        });
+      }
+    }
   }
 
   Future<void> _pickFile() async {
@@ -71,7 +138,15 @@ class _AddSoundPageState extends State<AddSoundPage> {
 
   Future<void> _playSound() async {
     if (_filePath != null) {
-      await _player.play(DeviceFileSource(_filePath!));
+      try {
+        await _player.play(DeviceFileSource(_filePath!));
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('❌ Error playing sound: $e')),
+          );
+        }
+      }
     }
   }
 
@@ -82,22 +157,36 @@ class _AddSoundPageState extends State<AddSoundPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Pridať novú kategóriu'),
+          backgroundColor: Colors.blueGrey[900],
+          title: const Text('Add new category', style: TextStyle(color: Colors.white)),
           content: TextField(
             controller: newCatController,
-            decoration: const InputDecoration(hintText: 'Názov kategórie'),
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              hintText: 'Category name',
+              hintStyle: TextStyle(color: Colors.white54),
+              enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.white38),
+              ),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.white),
+              ),
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Zrušiť'),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
             ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueGrey[700],
+              ),
               onPressed: () {
                 final value = newCatController.text.trim();
                 if (value.isNotEmpty) Navigator.pop(context, value);
               },
-              child: const Text('Pridať'),
+              child: const Text('Add', style: TextStyle(color: Colors.white70)),
             ),
           ],
         );
@@ -114,150 +203,242 @@ class _AddSoundPageState extends State<AddSoundPage> {
     }
   }
 
-  void _saveSound() {
+  void _saveSound() async {
     if (_filePath == null ||
         _nameController.text.trim().isEmpty ||
         _selectedCategories.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ Vyplň všetky polia')),
+        const SnackBar(content: Text('❌ Please fill all fields')),
       );
       return;
     }
 
-    final extension = _filePath!.split('.').last;
-    final cleanName = _nameController.text.trim().replaceAll(' ', '_');
-    final finalPath = '${Directory.systemTemp.path}/$cleanName.$extension';
-    File(_filePath!).renameSync(finalPath);
+    try {
+      final extension = _filePath!.split('.').last;
+      // Sanitize file name - remove special characters that could cause path issues
+      final cleanName = _nameController.text.trim()
+          .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
+          .replaceAll(' ', '_');
 
-    widget.onSoundAdded(
-      finalPath,
-      cleanName,
-      List.from(_selectedCategories),
-      _selectedColor, // 🟡 tu posielame farbu
-    );
+      if (cleanName.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('❌ Invalid file name')),
+        );
+        return;
+      }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('✅ Zvuk uložený')),
-    );
-    Navigator.pop(context);
+      final finalPath = '${Directory.systemTemp.path}/$cleanName.$extension';
+
+      // Check if file already exists and delete it first to avoid conflicts
+      final targetFile = File(finalPath);
+      if (await targetFile.exists()) {
+        await targetFile.delete();
+      }
+
+      // Rename the file
+      await File(_filePath!).rename(finalPath);
+
+      widget.onSoundAdded(
+        finalPath,
+        cleanName,
+        List.from(_selectedCategories),
+        _selectedColor,
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Error saving sound: $e')),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Pridať nový zvuk')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ElevatedButton.icon(
-              onPressed: _isRecording ? _stopRecording : _startRecording,
-              icon: Icon(_isRecording ? Icons.stop : Icons.mic),
-              label: Text(_isRecording ? 'Stop' : 'Nahrať'),
-            ),
-            const SizedBox(height: 10),
-            ElevatedButton.icon(
-              onPressed: _playSound,
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Prehrať'),
-            ),
-            const SizedBox(height: 10),
-            ElevatedButton.icon(
-              onPressed: _pickFile,
-              icon: const Icon(Icons.upload_file),
-              label: const Text('Nahrať zo súboru'),
-            ),
-            const SizedBox(height: 20),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.blueGrey[900],
+        title: const Text(
+          'Add new sound',
+          style: TextStyle(color: Colors.white),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: Column(
+        children: [
+          // Scrollable content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 🎤 Record / play / pick file
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isRecording
+                                ? Colors.redAccent
+                                : Colors.blueGrey[800],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          onPressed: _isRecording ? _stopRecording : _startRecording,
+                          icon: Icon(_isRecording ? Icons.stop : Icons.mic),
+                          label: Text(_isRecording ? 'Stop recording' : 'Record'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: _playSound,
+                        icon: const Icon(Icons.play_arrow),
+                        color: Colors.blueGrey[800],
+                        tooltip: 'Play',
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: _pickFile,
+                        icon: const Icon(Icons.upload_file),
+                        color: Colors.blueGrey[800],
+                        tooltip: 'Pick file',
+                      ),
+                    ],
+                  ),
 
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Názov zvuku',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
+                  const SizedBox(height: 20),
 
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Kategórie:',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  onPressed: _addNewCategory,
-                  icon: const Icon(Icons.add),
-                  tooltip: 'Pridať kategóriu',
-                ),
-              ],
-            ),
-
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: widget.categories.map((category) {
-                final isSelected = _selectedCategories.contains(category);
-                return FilterChip(
-                  label: Text(category),
-                  selected: isSelected,
-                  selectedColor: Colors.blue.shade200,
-                  onSelected: (bool selected) {
-                    setState(() {
-                      if (selected) {
-                        _selectedCategories.add(category);
-                      } else {
-                        _selectedCategories.remove(category);
-                      }
-                    });
-                  },
-                );
-              }).toList(),
-            ),
-
-            const SizedBox(height: 20),
-            const Text(
-              'Farba tlačidla:',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _colorOptions.map((color) {
-                final isSelected = _selectedColor.toARGB32() == color.toARGB32();
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedColor = color;
-                    });
-                  },
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isSelected ? Colors.black : Colors.transparent,
-                        width: 2,
+                  // 📝 Name input
+                  TextField(
+                    controller: _nameController,
+                    decoration: InputDecoration(
+                      labelText: 'Sound name',
+                      labelStyle: TextStyle(color: Colors.grey[700]),
+                      border: const OutlineInputBorder(),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.blueGrey[700]!),
                       ),
                     ),
                   ),
-                );
-              }).toList(),
-            ),
 
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: _saveSound,
-              icon: const Icon(Icons.save),
-              label: const Text('Uložiť zvuk'),
+                  const SizedBox(height: 16),
+
+                  // 📂 Categories
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Categories',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      IconButton(
+                        onPressed: _addNewCategory,
+                        icon: const Icon(Icons.add),
+                        color: Colors.blueGrey[800],
+                        tooltip: 'Add category',
+                      ),
+                    ],
+                  ),
+
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: widget.categories
+                        .where((category) => category.toLowerCase() != 'everything')
+                        .map((category) {
+                      final isSelected = _selectedCategories.contains(category);
+                      return FilterChip(
+                        label: Text(category),
+                        labelStyle: TextStyle(
+                          color: isSelected ? Colors.white : Colors.black87,
+                        ),
+                        selected: isSelected,
+                        selectedColor: Colors.blueGrey[700],
+                        backgroundColor: Colors.grey[200],
+                        onSelected: (bool selected) {
+                          setState(() {
+                            if (selected) {
+                              _selectedCategories.add(category);
+                            } else {
+                              _selectedCategories.remove(category);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // 🎨 Color picker
+                  const Text(
+                    'Button color',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _colorOptions.map((color) {
+                      final isSelected =
+                          _selectedColor.toARGB32() == color.toARGB32();
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedColor = color;
+                          });
+                        },
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.blueGrey[900]!
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // 💾 Save button
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueGrey[800],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: _saveSound,
+                    icon: const Icon(Icons.save),
+                    label: const Text('Save sound'),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+          ),
+
+          // Banner Ad - fixed at bottom
+          if (_isBannerAdLoaded && _bannerAd != null)
+            Container(
+              alignment: Alignment.center,
+              width: _bannerAd!.size.width.toDouble(),
+              height: _bannerAd!.size.height.toDouble(),
+              child: AdWidget(ad: _bannerAd!),
+            ),
+        ],
       ),
     );
   }

@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(for:*)",
+      "Bash(do if [ \"$file\" != \"PH intro.mp3\" ])",
+      "Bash([ \"$file\" != \"hub-intro-sound.mp3\" ])",
+      "Bash(then mv \"$file\" ../)",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(ls:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(flutter build:*)",
+      "Bash(flutter run:*)",
+      "Bash(flutter pub get:*)"
+    ]
+  }
+}

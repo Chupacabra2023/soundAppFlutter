@@ -1,3 +1,18 @@
 name: record_linux
 description: fake empty package to disable linux plugin
 version: 0.0.1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      linux:
+        pluginClass: RecordLinuxPlugin
+        dartPluginClass: RecordLinux

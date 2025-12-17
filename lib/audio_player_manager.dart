@@ -1,11 +1,11 @@
 import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
 
-/// Trieda na správu prehrávača a streamovanie stavu (progress, buffer, total)
+
 class AudioPlayerManager {
   final player = AudioPlayer();
 
-  /// Spojený stream progressu, bufferu a celkového času
+
   Stream<DurationState> get durationState => Rx.combineLatest3<Duration, Duration, Duration?, DurationState>(
     player.positionStream,
     player.bufferedPositionStream,
@@ -17,9 +17,9 @@ class AudioPlayerManager {
     ),
   );
 
-  /// Inicializácia (môžeš načítať ľubovoľný zvukový súbor)
+
   Future<void> init() async {
-    await player.setAsset('assets/bruh.mp3'); // napríklad tvoj zvuk
+    await player.setAsset('assets/bruh.mp3');
   }
 
   void dispose() {
@@ -27,7 +27,7 @@ class AudioPlayerManager {
   }
 }
 
-/// Pomocná dátová trieda pre stav prehrávania
+
 class DurationState {
   const DurationState({
     required this.progress,

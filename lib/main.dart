@@ -7,8 +7,14 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'sound_data.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
-void main() => runApp(const MyApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  MobileAds.instance.initialize();
+  runApp(const MyApp());
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -38,158 +44,143 @@ class _SoundboardPageState extends State<SoundboardPage> {
   double _playbackRate = 1.0;
   String _searchQuery = '';
   bool _isDeleteMode = false;
-  String _selectedCategory = 'Všetko';
-  final List<String> _categories = [
-    'Všetko',
-    'Meme',
-    'Hudba',
-    'Zvuky',
-    'Favourite'
-  ];
+  bool _isResetting = false; // Loading state pre reset
+  String _selectedCategory = 'everything';
+  List<String> _categories = ['everything'];
 
-  // tu máš zoznam zvukov
-  // ✅ PRÁZDNY ZOZNAM – defaulty sa načítajú až v _initializeSounds()
+  // Sound list - empty by default, defaults will be loaded in _initializeSounds()
   final List<Map<String, dynamic>> sounds = [];
 
-  Future<void> _clearAllSavedSounds() async {
-    final dir = await getApplicationDocumentsDirectory();
-
-    // 🧾 zmažeme JSON
-    final jsonFile = File('${dir.path}/sounds.json');
-    if (await jsonFile.exists()) {
-      await jsonFile.delete();
-      print('🗑️ sounds.json deleted');
-    }
-
-    // 🧼 zmažeme všetky zvukové súbory
-    final files = dir.listSync();
-    for (var file in files) {
-      if (file is File &&
-          (file.path.endsWith('.mp3') || file.path.endsWith('.m4a'))) {
-        await file.delete();
-        print('🗑️ Deleted: ${file.path}');
-      }
-    }
-  }
-
   Future<String> saveFileToPermanentStorage(String sourcePath) async {
-    final dir = await getApplicationDocumentsDirectory();
-    final fileName = sourcePath
-        .split('/')
-        .last;
-    final newFile = File('${dir.path}/$fileName');
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final fileName = sourcePath.split('/').last;
+      final newFile = File('${dir.path}/$fileName');
 
-    if (sourcePath.startsWith('assets/')) {
-      final byteData = await rootBundle.load(sourcePath);
-      await newFile.writeAsBytes(byteData.buffer.asUint8List());
-    } else {
-      await File(sourcePath).copy(newFile.path);
+      if (sourcePath.startsWith('assets/')) {
+        final byteData = await rootBundle.load(sourcePath);
+        await newFile.writeAsBytes(byteData.buffer.asUint8List());
+      } else {
+        await File(sourcePath).copy(newFile.path);
+      }
+
+      return fileName;
+    } catch (e) {
+      debugPrint('Error saving file to permanent storage: $e');
+      rethrow;
     }
-
-    return fileName;
   }
 
   Future<void> loadSoundsFromStorage() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/sounds.json');
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/sounds.json');
 
-    if (await file.exists()) {
-      final content = await file.readAsString();
-      if (content.isNotEmpty) {
-        final data = jsonDecode(content);
-        setState(() {
-          sounds
-            ..clear()
-            ..addAll(List<Map<String, dynamic>>.from(data));
-        });
-        print('📥 Načítané ${sounds.length} zvukov z JSON-u');
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        if (content.isNotEmpty) {
+          final data = jsonDecode(content);
+
+          // Skontroluj verziu dát
+          final savedVersion = data['version'] ?? 1;
+
+          if (savedVersion != DATA_VERSION) {
+            debugPrint('Data version mismatch! Saved: $savedVersion, Current: $DATA_VERSION');
+            debugPrint('Resetting to default sounds with new version...');
+            // Verzia sa zmenila - načítaj nové defaulty
+            await _initializeSounds();
+            return;
+          }
+
+          // Verzia sedí - načítaj uložené zvuky
+          final soundsList = data['sounds'] ?? data; // Backward compatibility
+          setState(() {
+            sounds
+              ..clear()
+              ..addAll(List<Map<String, dynamic>>.from(soundsList is List ? soundsList : []));
+          });
+          debugPrint('Loaded ${sounds.length} sounds from JSON (version: $savedVersion)');
+        }
+      } else {
+        debugPrint('sounds.json does not exist');
       }
-    } else {
-      print('⚠️ sounds.json neexistuje');
+    } catch (e) {
+      debugPrint('Error loading sounds from storage: $e - will try to initialize defaults');
+      await _initializeSounds();
     }
   }
 
   Future<void> deleteSound(String soundName) async {
-    final dir = await getApplicationDocumentsDirectory();
-    final filePath = '${dir.path}/$soundName';
-    final file = File(filePath);
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final filePath = '${dir.path}/$soundName';
+      final file = File(filePath);
 
-    // 🗑️ zmaž fyzický súbor ak existuje
-    if (await file.exists()) {
-      await file.delete();
-      print('🗑️ Súbor zmazaný: $filePath');
+      // Delete physical file if exists
+      if (await file.exists()) {
+        await file.delete();
+        debugPrint('File deleted: $filePath');
+      }
+
+      // Remove from list
+      sounds.removeWhere((s) => s['name'] == soundName);
+
+      // Update JSON
+      await saveSoundsToStorage();
+
+      // Aktualizuj zoznam kategórií
+      _rebuildCategoriesList();
+    } catch (e) {
+      debugPrint('Error deleting sound: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting sound: $e')),
+        );
+      }
     }
-
-    // 🧼 odstráň položku zo zoznamu
-    sounds.removeWhere((s) => s['name'] == soundName);
-
-    // 💾 aktualizuj JSON
-    await saveSoundsToStorage();
   }
 
 
   Future<void> saveSoundsToStorage() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/sounds.json');
-    await file.writeAsString(jsonEncode(sounds));
-    print('📄 JSON uložený v: ${file.path}');
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/sounds.json');
+
+      // Ulož zvuky aj s verziou dát
+      final data = {
+        'version': DATA_VERSION,
+        'sounds': sounds,
+      };
+
+      await file.writeAsString(jsonEncode(data));
+      debugPrint('JSON saved at: ${file.path} (version: $DATA_VERSION)');
+    } catch (e) {
+      debugPrint('Error saving sounds to storage: $e');
+    }
   }
 
-// ✅ Inicializácia default zvukov len ak JSON neexistuje alebo je prázdny
+  // Initialize default sounds only if JSON doesn't exist or is empty
   Future<void> _initializeSounds() async {
-    final defaultSounds = [
-      {
-        'name': 'bruh.mp3',
-        'title': 'Bruh',
-        'categories': ['Meme'],
-        'fav': false,
-        'color': '#42A5F5'
-      },
-      {
-        'name': 'danika_house.mp3',
-        'title': 'Danika',
-        'categories': ['Hudba'],
-        'fav': false,
-        'color': '#66BB6A'
-      },
-      {
-        'name': 'hamburger.mp3',
-        'title': 'Hamburger',
-        'categories': ['Meme', 'Zvuky'],
-        'fav': false,
-        'color': '#FFA726'
-      },
-      {
-        'name': 'huh.mp3',
-        'title': 'Huh',
-        'categories': ['Zvuky'],
-        'fav': false,
-        'color': '#AB47BC'
-      },
-      {
-        'name': 'let_him_cook.mp3',
-        'title': 'Let Him Cook',
-        'categories': ['Meme'],
-        'fav': false,
-        'color': '#EC407A'
-      },
-    ];
+    try {
+      sounds
+        ..clear()
+        ..addAll(defaultSounds);
 
-    sounds.clear();
-    sounds.addAll(defaultSounds);
+      for (var sound in defaultSounds) {
+        await saveFileToPermanentStorage('assets/${sound['name']}');
+      }
 
-    for (var sound in defaultSounds) {
-      await saveFileToPermanentStorage('assets/${sound['name']}');
+      await saveSoundsToStorage();
+      debugPrint('Default sounds initialized');
+    } catch (e) {
+      debugPrint('Error initializing sounds: $e');
     }
-
-    await saveSoundsToStorage();
-    print('✅ Default zvuky inicializované');
   }
 
   List<Map<String, dynamic>> get filteredSounds {
     return sounds.where((sound) {
       // Kategória filter
-      if (_selectedCategory != 'Všetko') {
+      if (_selectedCategory != 'everything') {
         final categories = List<String>.from(sound['categories'] ?? []);
         if (!categories.contains(_selectedCategory)) return false;
       }
@@ -211,73 +202,121 @@ class _SoundboardPageState extends State<SoundboardPage> {
   }
 
   Future<void> _initializeApp() async {
-    // await _clearAllSavedSounds();     // 🧹 najprv vymažeme
-    await _checkAndLoadSounds(); // 📥 potom načítame zvuky
+    await _checkAndLoadSounds();
+    _rebuildCategoriesList();
 
     _player.onPlayerComplete.listen((event) {
+      if (mounted && !_isLooping) {
+        setState(() {
+          _progress = 0.0;
+          _currentSound = null;
+        });
+      }
+    });
+  }
+
+  // Funkcia na dynamické vytvorenie zoznamu kategórií podľa skutočne používaných
+  void _rebuildCategoriesList() {
+    final usedCategories = <String>{'everything'}; // Len 'everything' je vždy prítomné
+
+    // Prejdi všetky zvuky a zozbieraj ich kategórie
+    for (var sound in sounds) {
+      final categories = List<String>.from(sound['categories'] ?? []);
+      for (var category in categories) {
+        if (category.toLowerCase() != 'everything') {
+          usedCategories.add(category);
+        }
+      }
+    }
+
+    setState(() {
+      _categories = usedCategories.toList()..sort();
+      // Presun 'everything' na začiatok
+      _categories.remove('everything');
+      _categories.insert(0, 'everything');
+
+      // Ak aktuálne vybraná kategória už neexistuje, prepni na 'everything'
+      if (!_categories.contains(_selectedCategory)) {
+        _selectedCategory = 'everything';
+      }
     });
   }
 
 
   Future<void> _checkAndLoadSounds() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final jsonFile = File('${dir.path}/sounds.json');
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final jsonFile = File('${dir.path}/sounds.json');
 
-    if (await jsonFile.exists()) {
-      await loadSoundsFromStorage();
-      print('📥 Načítané ${sounds.length} zvukov z úložiska');
+      if (await jsonFile.exists()) {
+        await loadSoundsFromStorage();
+        debugPrint('Loaded ${sounds.length} sounds from storage');
 
-      // Ak je JSON prázdny, inicializuj default
-      if (sounds.isEmpty) {
-        print('📂 JSON je prázdny — inicializujem default zvuky');
+        // If JSON is empty, initialize defaults
+        if (sounds.isEmpty) {
+          debugPrint('JSON is empty - initializing default sounds');
+          await _initializeSounds();
+        }
+      } else {
+        debugPrint('JSON does not exist - initializing default sounds');
         await _initializeSounds();
       }
-    } else {
-      print('🚀 JSON neexistuje — inicializujem default zvuky');
-      await _initializeSounds();
+    } catch (e) {
+      debugPrint('Error checking and loading sounds: $e');
     }
   }
 
   Future<void> _playSound(String name) async {
-    await _player.stop();
-    if (!mounted) return;
-    await _player.setPlaybackRate(_playbackRate);
-    await _player.setReleaseMode(ReleaseMode.release);
+    try {
+      await _player.stop();
+      if (!mounted) return;
+      await _player.setPlaybackRate(_playbackRate);
+      await _player.setReleaseMode(ReleaseMode.release);
 
-    // 🗂 permanentný priečinok aplikácie
-    final dir = await getApplicationDocumentsDirectory();
-    final filePath = '${dir.path}/$name';
+      // Get application documents directory
+      final dir = await getApplicationDocumentsDirectory();
+      final filePath = '${dir.path}/$name';
 
-    if (await File(filePath).exists()) {
-      // ✅ prehráme uložený súbor
-      await _player.play(DeviceFileSource(filePath));
-      print('🎧 Playing from permanent storage: $filePath');
-    } else if (name.startsWith('/')) {
-      // ✅ prehráme súbor, ktorý má priamo absolútnu cestu
-      await _player.play(DeviceFileSource(name));
-      print('🎧 Playing from local path: $name');
-    } else {
-      // ❌ súbor neexistuje
-      print('⚠️ Súbor neexistuje: $filePath');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ Súbor neexistuje v úložisku')),
-      );
-      return;
-    }
+      if (await File(filePath).exists()) {
+        // Play saved file
+        await _player.play(DeviceFileSource(filePath));
+        debugPrint('Playing from permanent storage: $filePath');
+      } else if (name.startsWith('/')) {
+        // Play file with absolute path
+        await _player.play(DeviceFileSource(name));
+        debugPrint('Playing from local path: $name');
+      } else {
+        // File doesn't exist
+        debugPrint('File does not exist: $filePath');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('❌ File does not exist in storage')),
+          );
+        }
+        return;
+      }
 
-    setState(() {
-      _currentSound = name;
-      _progress = 0.0;
-    });
-
-    final duration = await _player.getDuration();
-    if (duration != null && duration.inMilliseconds > 0) {
-      _startFakeProgress(duration.inMilliseconds);
-    } else {
-      _player.onDurationChanged.first.then((d) {
-        final length = d.inMilliseconds;
-        if (length > 0) _startFakeProgress(length);
+      setState(() {
+        _currentSound = name;
+        _progress = 0.0;
       });
+
+      final duration = await _player.getDuration();
+      if (duration != null && duration.inMilliseconds > 0) {
+        _startFakeProgress(duration.inMilliseconds);
+      } else {
+        _player.onDurationChanged.first.then((d) {
+          final length = d.inMilliseconds;
+          if (length > 0) _startFakeProgress(length);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error playing sound: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error playing sound: $e')),
+        );
+      }
     }
   }
 
@@ -288,7 +327,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
     final start = DateTime.now();
 
     _progressTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
-      // ✅ BEZPEČNOSTNÁ KONTROLA
+      // Safety check - cancel if widget is disposed
       if (!mounted) {
         timer.cancel();
         return;
@@ -358,9 +397,15 @@ class _SoundboardPageState extends State<SoundboardPage> {
         sounds[soundIndex]['categories'] = newCategories;
         sounds[soundIndex]['color'] =
         '#${newColor.toARGB32().toRadixString(16).padLeft(8, '0')}';
+
+        // Automaticky synchronizuj hviezdu (fav) s kategóriou "favourite"
+        sounds[soundIndex]['fav'] = newCategories.contains('favourite');
       }
     });
     saveSoundsToStorage();
+
+    // Aktualizuj zoznam kategórií podľa skutočne používaných
+    _rebuildCategoriesList();
   }
 
   // Funkcia na prepnutie obľúbených
@@ -375,17 +420,20 @@ class _SoundboardPageState extends State<SoundboardPage> {
         // 🟡 Pridáme alebo odstránime kategóriu "Favourite"
         final categories = List<String>.from(sound['categories'] ?? []);
         if (sound['fav']) {
-          if (!categories.contains('Favourite')) {
-            categories.add('Favourite');
+          if (!categories.contains('favourite')) {
+            categories.add('favourite');
           }
         } else {
-          categories.remove('Favourite');
+          categories.remove('favourite');
         }
         sound['categories'] = categories;
       }
     });
 
     saveSoundsToStorage();
+
+    // Aktualizuj zoznam kategórií (favourite sa môže pridať/odobrať)
+    _rebuildCategoriesList();
   }
 
   Color _parseColor(String hex) {
@@ -408,57 +456,188 @@ class _SoundboardPageState extends State<SoundboardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Soundboard 🎵'),
+        backgroundColor: Colors.blueGrey[900],
+        automaticallyImplyLeading: false,
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            const SizedBox(width: 30),
+            DropdownButton<String>(
+              value: _selectedCategory,
+              underline: const SizedBox(),
+              dropdownColor: Colors.blueGrey[800],
+              iconEnabledColor: Colors.white,
+              style: const TextStyle(color: Colors.white),
+              onChanged: (String? newValue) {
+                setState(() {
+                  _selectedCategory = newValue!;
+                });
+              },
+              items: _categories.map<DropdownMenuItem<String>>((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
         actions: [
+          // ➕ PRIDAŤ HORE
+          IconButton(
+            icon: const Icon(Icons.add, color: Colors.white),
+            tooltip: 'Pridať zvuk',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AddSoundPage(
+                    categories: _categories,
+                    onSoundAdded:
+                        (filePath, title, categories, color) async {
+                      final savedFileName =
+                      await saveFileToPermanentStorage(filePath);
+                      setState(() {
+                        sounds.add({
+                          'name': savedFileName,
+                          'title': title.isNotEmpty ? title : savedFileName,
+                          'categories': categories,
+                          'fav': false,
+                          'color':
+                          '#${color.toARGB32().toRadixString(16).padLeft(8, '0')}',
+                        });
+                      });
+                      await saveSoundsToStorage();
+
+                      // Aktualizuj zoznam kategórií
+                      _rebuildCategoriesList();
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+
+          IconButton(
+            icon: Icon(
+              _isLooping ? Icons.loop : Icons.loop_outlined,
+              color: _isLooping ? Colors.lightBlueAccent : Colors.white,
+            ),
+            onPressed: _toggleLoop,
+            tooltip: 'Loop',
+          ),
+          PopupMenuButton<double>(
+            icon: const Icon(Icons.speed, color: Colors.white),
+            tooltip: 'Playback Speed',
+            color: Colors.blueGrey[800],
+            onSelected: _changeSpeed,
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 0.5,
+                child: Text('0.5x Speed', style: TextStyle(color: Colors.white)),
+              ),
+              PopupMenuItem(
+                value: 1.0,
+                child: Text('1.0x Normal', style: TextStyle(color: Colors.white)),
+              ),
+              PopupMenuItem(
+                value: 2.0,
+                child: Text('2.0x Speed', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
           IconButton(
             icon: Icon(
               _isDeleteMode ? Icons.close : Icons.delete,
-              color: _isDeleteMode ? Colors.red : null,
+              color: _isDeleteMode ? Colors.redAccent : Colors.white,
             ),
-            tooltip: _isDeleteMode ? 'Zrušiť mazanie' : 'Mód mazania',
             onPressed: () {
               setState(() {
                 _isDeleteMode = !_isDeleteMode;
               });
             },
+            tooltip: _isDeleteMode ? 'Cancel delete mode' : 'Delete mode',
           ),
+          // 🔄 DEBUG: Reset button
           IconButton(
-            icon: Icon(
-              _isLooping ? Icons.loop : Icons.loop_outlined,
-              color: _isLooping ? Colors.blue : null,
-            ),
-            onPressed: _toggleLoop,
-            tooltip: 'Loop',
-          ),
-          DropdownButton<String>(
-            value: _selectedCategory,
-            underline: const SizedBox(),
-            icon: const Icon(Icons.arrow_drop_down),
-            onChanged: (String? newValue) {
-              setState(() {
-                _selectedCategory = newValue!;
-              });
-            },
-            items: _categories.map<DropdownMenuItem<String>>((String value) {
-              return DropdownMenuItem<String>(
-                value: value,
-                child: Text(value),
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Reset sounds',
+            onPressed: _isResetting ? null : () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  backgroundColor: Colors.white,
+                  title: const Text('Reset sounds'),
+                  content: const Text(
+                      'This will delete all current sounds and reload the original sounds with their categories.\n\nDo you want to continue?'
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey[800],
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Reset'),
+                    ),
+                  ],
+                ),
               );
-            }).toList(),
+
+
+              if (confirm == true) {
+                setState(() {
+                  _isResetting = true;
+                });
+
+                try {
+                  final dir = await getApplicationDocumentsDirectory();
+
+                  // Vymaž všetky audio súbory
+                  for (var sound in sounds) {
+                    final filePath = '${dir.path}/${sound['name']}';
+                    final file = File(filePath);
+                    if (await file.exists()) {
+                      await file.delete();
+                    }
+                  }
+
+                  // Vymaž JSON
+                  final jsonFile = File('${dir.path}/sounds.json');
+                  if (await jsonFile.exists()) {
+                    await jsonFile.delete();
+                  }
+
+                  // Načítaj defaultné zvuky s kategóriami
+                  await _initializeSounds();
+                  _rebuildCategoriesList();
+
+                  if (mounted) {
+                    setState(() {
+                      _isResetting = false;
+                    });
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    setState(() {
+                      _isResetting = false;
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('❌ Error: $e')),
+                    );
+                  }
+                }
+              }
+            },
           ),
-          PopupMenuButton<double>(
-            icon: const Icon(Icons.speed),
-            tooltip: 'Playback Speed',
-            onSelected: _changeSpeed,
-            itemBuilder: (context) =>
-            [
-              const PopupMenuItem(value: 0.5, child: Text('0.5x Speed')),
-              const PopupMenuItem(value: 1.0, child: Text('1.0x Normal')),
-              const PopupMenuItem(value: 2.0, child: Text('2.0x Speed')),
-            ],
-          ),
+          const SizedBox(width: 4),
         ],
       ),
+
       body: Stack(
         children: [
           Column(
@@ -492,25 +671,24 @@ class _SoundboardPageState extends State<SoundboardPage> {
                           child: Text(
                             _currentSound == null
                                 ? "No sound playing"
-                                : "🎶 Now playing: ${_currentSound!.split('/')
-                                .last}",
+                                : "🎶 Now playing: ${_currentSound!.split('/').last}",
                             style: const TextStyle(fontWeight: FontWeight.bold),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (_currentSound != null) ...[
-                          if (_isLooping)
-                            const Icon(Icons.loop, color: Colors.blue,
-                                size: 16),
+                        if (_currentSound != null && _isLooping)
+                          const Icon(Icons.loop,
+                              color: Colors.blue, size: 16),
+                        if (_currentSound != null)
                           const SizedBox(width: 4),
-                          Text(
-                            '${_playbackRate}x',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
+                        Text(
+                          '${_playbackRate}x',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
                           ),
-                        ],
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -572,11 +750,13 @@ class _SoundboardPageState extends State<SoundboardPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.audiotrack, size: 64, color: Colors.grey),
+                        Icon(Icons.audiotrack,
+                            size: 64, color: Colors.grey),
                         SizedBox(height: 16),
                         Text(
                           'No sounds found',
-                          style: TextStyle(fontSize: 18, color: Colors.grey),
+                          style:
+                          TextStyle(fontSize: 18, color: Colors.grey),
                         ),
                         SizedBox(height: 8),
                         Text(
@@ -587,7 +767,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
                     ),
                   )
                       : GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 3,
                       crossAxisSpacing: 8,
                       mainAxisSpacing: 8,
@@ -602,9 +783,11 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         displayName: sound['title'],
                         buttonColor: _isDeleteMode
                             ? Colors.redAccent
-                            : _parseColor(sound['color'] ?? '#42A5F5'),
-                        categories: List<String>.from(sound['categories'] ?? [
-                        ]),
+                            : _parseColor(
+                          sound['color'] ?? '#42A5F5',
+                        ),
+                        categories: List<String>.from(
+                            sound['categories'] ?? []),
                         isFavorite: sound['fav'] ?? false,
                         allCategories: _categories,
                         onPressed: () async {
@@ -615,11 +798,13 @@ class _SoundboardPageState extends State<SoundboardPage> {
                             _playSound(sound['name']);
                           }
                         },
-                        onUpdate: (newTitle, newCategories, newColor) {
-                          _updateSound(
-                              sound['name'], newTitle, newCategories, newColor);
+                        onUpdate:
+                            (newTitle, newCategories, newColor) {
+                          _updateSound(sound['name'], newTitle,
+                              newCategories, newColor);
                         },
-                        onToggleFavorite: () => _toggleFavorite(sound['name']),
+                        onToggleFavorite: () =>
+                            _toggleFavorite(sound['name']),
                       );
                     },
                   ),
@@ -628,64 +813,58 @@ class _SoundboardPageState extends State<SoundboardPage> {
             ],
           ),
 
-        ],
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: Stack(
-        children: [
-          // 🟦 STOP tlačidlo v strede
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: FloatingActionButton(
-              backgroundColor: Theme.of(context).floatingActionButtonTheme.backgroundColor,
-              onPressed: _stopSound,
-              child: const Icon(Icons.stop),
-            ),
-          ),
-
-          // ➕ ADD tlačidlo vpravo (pôvodné)
-          Align(
-            alignment: Alignment.bottomRight,
-            child: FloatingActionButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AddSoundPage(
-                      categories: _categories,
-                      onSoundAdded: (filePath, title, categories, color) async {
-                        final savedFileName = await saveFileToPermanentStorage(filePath);
-                        setState(() {
-                          sounds.add({
-                            'name': savedFileName,
-                            'title': title.isNotEmpty ? title : savedFileName,
-                            'categories': categories,
-                            'fav': false,
-                            'color': '#${color
-                                .toARGB32()
-                                .toRadixString(16)
-                                .padLeft(8, '0')}',
-                          });
-                        });
-                        await saveSoundsToStorage();
-
-                        for (var c in categories) {
-                          if (!_categories.contains(c)) {
-                            setState(() {
-                              _categories.add(c);
-                            });
-                          }
-                        }
-                      },
+          // Loading overlay
+          if (_isResetting)
+            Container(
+              color: Colors.black54,
+              child: Center(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Restoring sounds...',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blueGrey[800],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Please wait a moment',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                );
-              },
-              child: const Icon(Icons.add),
+                ),
+              ),
             ),
-          ),
         ],
       ),
+
+      // dole už len STOP
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'stopButton',
+        backgroundColor: Colors.blueGrey[800],
+        onPressed: _stopSound,
+        tooltip: 'Stop',
+        child: const Icon(
+          Icons.stop,
+          color: Colors.white, // pekná biela ikonka
+          size: 28, // trochu väčšia pre krajší vzhľad
+        ),
+      ),
+
     );
   }
+
 }
