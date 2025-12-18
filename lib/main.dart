@@ -112,6 +112,11 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
   Future<void> deleteSound(String soundName) async {
     try {
+      // Ak sa práve prehráva tento zvuk, zastav ho
+      if (_currentSound == soundName) {
+        _stopSound();
+      }
+
       final dir = await getApplicationDocumentsDirectory();
       final filePath = '${dir.path}/$soundName';
       final file = File(filePath);
@@ -398,8 +403,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
         sounds[soundIndex]['color'] =
         '#${newColor.toARGB32().toRadixString(16).padLeft(8, '0')}';
 
-        // Automaticky synchronizuj hviezdu (fav) s kategóriou "favourite"
-        sounds[soundIndex]['fav'] = newCategories.contains('favourite');
+        // Automaticky synchronizuj hviezdu (fav) s kategóriou "favorite"
+        sounds[soundIndex]['fav'] = newCategories.contains('favorite');
       }
     });
     saveSoundsToStorage();
@@ -417,14 +422,14 @@ class _SoundboardPageState extends State<SoundboardPage> {
         final isFav = sound['fav'] ?? false;
         sound['fav'] = !isFav;
 
-        // 🟡 Pridáme alebo odstránime kategóriu "Favourite"
+        // 🟡 Pridáme alebo odstránime kategóriu "Favorite"
         final categories = List<String>.from(sound['categories'] ?? []);
         if (sound['fav']) {
-          if (!categories.contains('favourite')) {
-            categories.add('favourite');
+          if (!categories.contains('favorite')) {
+            categories.add('favorite');
           }
         } else {
-          categories.remove('favourite');
+          categories.remove('favorite');
         }
         sound['categories'] = categories;
       }
@@ -432,7 +437,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
     saveSoundsToStorage();
 
-    // Aktualizuj zoznam kategórií (favourite sa môže pridať/odobrať)
+    // Aktualizuj zoznam kategórií (favorite sa môže pridať/odobrať)
     _rebuildCategoriesList();
   }
 
@@ -671,7 +676,14 @@ class _SoundboardPageState extends State<SoundboardPage> {
                           child: Text(
                             _currentSound == null
                                 ? "No sound playing"
-                                : "🎶 Now playing: ${_currentSound!.split('/').last}",
+                                : () {
+                                    // Nájdi sound v zozname a zobraz title namiesto file name
+                                    final sound = sounds.firstWhere(
+                                      (s) => s['name'] == _currentSound,
+                                      orElse: () => {'title': _currentSound!.split('/').last},
+                                    );
+                                    return "Now playing: ${sound['title']}";
+                                  }(),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -790,12 +802,19 @@ class _SoundboardPageState extends State<SoundboardPage> {
                             sound['categories'] ?? []),
                         isFavorite: sound['fav'] ?? false,
                         allCategories: _categories,
+                        isPlaying: _currentSound == sound['name'], // Skontroluj či sa tento zvuk prehráva
                         onPressed: () async {
                           if (_isDeleteMode) {
                             await deleteSound(sound['name']);
                             setState(() {});
                           } else {
-                            _playSound(sound['name']);
+                            // Ak sa tento zvuk už prehráva, zastav ho
+                            if (_currentSound == sound['name']) {
+                              _stopSound();
+                            } else {
+                              // Inak prehraj zvuk
+                              _playSound(sound['name']);
+                            }
                           }
                         },
                         onUpdate:
@@ -849,21 +868,6 @@ class _SoundboardPageState extends State<SoundboardPage> {
             ),
         ],
       ),
-
-      // dole už len STOP
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'stopButton',
-        backgroundColor: Colors.blueGrey[800],
-        onPressed: _stopSound,
-        tooltip: 'Stop',
-        child: const Icon(
-          Icons.stop,
-          color: Colors.white, // pekná biela ikonka
-          size: 28, // trochu väčšia pre krajší vzhľad
-        ),
-      ),
-
     );
   }
 

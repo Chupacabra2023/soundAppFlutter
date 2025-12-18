@@ -29,6 +29,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
 
   // 🎨 color palette (same vibe as main)
   final List<Color> _colorOptions = [
+    const Color(0xFF7BAFD4), // Pôvodná/default svetlá modrá farba
     Colors.blueGrey.shade700,
     Colors.blueAccent,
     Colors.redAccent,
@@ -41,7 +42,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
     Colors.grey,
   ];
 
-  Color _selectedColor = Colors.blueGrey.shade700;
+  Color _selectedColor = const Color(0xFF7BAFD4); // Default pôvodná farba
 
   BannerAd? _bannerAd;
   bool _isBannerAdLoaded = false;

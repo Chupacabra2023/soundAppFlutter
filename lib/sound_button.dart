@@ -11,6 +11,7 @@ class SoundButton extends StatefulWidget {
   final Function(String, List<String>, Color) onUpdate;
   final VoidCallback onToggleFavorite;
   final Color buttonColor;
+  final bool isPlaying; // Nový parameter - či sa tento zvuk práve prehráva
 
   const SoundButton({
     super.key,
@@ -23,6 +24,7 @@ class SoundButton extends StatefulWidget {
     required this.onPressed,
     required this.onUpdate,
     required this.onToggleFavorite,
+    this.isPlaying = false, // Default: nie je playing
   });
 
   @override
@@ -37,6 +39,8 @@ class _SoundButtonState extends State<SoundButton> {
 
 
   final List<Color> _colorOptions = [
+    const Color(0xFF7BAFD4), // Pôvodná/default svetlá modrá farba
+    Colors.blueGrey.shade700,
     Colors.blueAccent,
     Colors.redAccent,
     Colors.greenAccent,
@@ -310,23 +314,43 @@ class _SoundButtonState extends State<SoundButton> {
           children: [
 
             Expanded(
-              flex: 80,
+              flex: 75, // Zmenšené z 80, aby bol spodný panel väčší
               child: Center(
-                child: Text(
-                  _currentDisplayName,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+                child: widget.isPlaying
+                    ? const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.stop,
+                            size: 40, // Zmenšené z 48 na 40 kvôli overflow
+                            color: Colors.white,
+                          ),
+                          SizedBox(height: 2), // Zmenšené z 4 na 2
+                          Text(
+                            'STOP',
+                            style: TextStyle(
+                              fontSize: 12, // Zmenšené z 14 na 12
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        _currentDisplayName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
               ),
             ),
 
 
             Expanded(
-              flex: 20,
+              flex: 25, // Zväčšené z 20 na 25 (o trochu väčší spodný panel)
               child: Container(
                 decoration: BoxDecoration(
                   color: Colors.blueGrey.shade800,
