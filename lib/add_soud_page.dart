@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:io';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'sound_data.dart';
 
 class AddSoundPage extends StatefulWidget {
   final List<String> categories;
@@ -26,21 +27,6 @@ class _AddSoundPageState extends State<AddSoundPage> {
   bool _isRecording = false;
   final TextEditingController _nameController = TextEditingController();
   final List<String> _selectedCategories = [];
-
-  // 🎨 color palette (same vibe as main)
-  final List<Color> _colorOptions = [
-    const Color(0xFF7BAFD4), // Pôvodná/default svetlá modrá farba
-    Colors.blueGrey.shade700,
-    Colors.blueAccent,
-    Colors.redAccent,
-    Colors.greenAccent,
-    Colors.orangeAccent,
-    Colors.purpleAccent,
-    Colors.tealAccent,
-    Colors.indigoAccent,
-    Colors.brown,
-    Colors.grey,
-  ];
 
   Color _selectedColor = const Color(0xFF7BAFD4); // Default pôvodná farba
 
@@ -386,7 +372,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: _colorOptions.map((color) {
+                    children: kColorPalette.map((color) {
                       final isSelected =
                           _selectedColor.toARGB32() == color.toARGB32();
                       return GestureDetector(

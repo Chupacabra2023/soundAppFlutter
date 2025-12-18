@@ -1,6 +1,48 @@
+import 'package:flutter/material.dart';
+
 // Data version - zvýš toto číslo keď zmeníš defaultné zvuky
 // Aplikácia automaticky resetuje zvuky pri zmene verzie
-const int DATA_VERSION = 10;
+const int DATA_VERSION = 11;
+
+// 🎨 Globálna paleta farieb pre tlačidlá (použitá v SoundButton a AddSoundPage)
+const List<Color> kColorPalette = [
+  Color(0xFF7BAFD4), // Pôvodná/default svetlá modrá farba
+
+  // Blues
+  Color(0xFF42A5F5),  // Colors.blue.shade400
+  Color(0xFF039BE5),  // Colors.lightBlue.shade600
+  Color(0xFF00BCD4),  // Colors.cyan.shade500
+  Color(0xFF546E7A),  // Colors.blueGrey.shade700
+  Color(0xFF5C6BC0),  // Colors.indigo.shade400
+
+  // Greens
+  Color(0xFF66BB6A),  // Colors.green.shade500
+  Color(0xFF7CB342),  // Colors.lightGreen.shade600
+  Color(0xFF26A69A),  // Colors.teal.shade500
+  Color(0xFFC0CA33),  // Colors.lime.shade600
+
+  // Reds & Pinks
+  Color(0xFFF44336),  // Colors.red.shade500
+  Color(0xFFEC407A),  // Colors.pink.shade400
+  Color(0xFFFF5722),  // Colors.deepOrange.shade500
+  Color(0xFFFF5252),  // Colors.redAccent
+
+  // Purples
+  Color(0xFFAB47BC),  // Colors.purple.shade400
+  Color(0xFF7E57C2),  // Colors.deepPurple.shade400
+  Color(0xFFE040FB),  // Colors.purpleAccent
+
+  // Yellows & Oranges
+  Color(0xFFFBC02D),  // Colors.yellow.shade700
+  Color(0xFFFFB300),  // Colors.amber.shade600
+  Color(0xFFFB8C00),  // Colors.orange.shade600
+
+  // Browns & Greys
+  Color(0xFF8D6E63),  // Colors.brown.shade400
+  Color(0xFF757575),  // Colors.grey.shade600
+  Color(0xFF78909C),  // Colors.blueGrey.shade500
+  Color(0xFF424242),  // Colors.grey.shade800
+];
 
 // Sound file names - all MP3 files from assets folder
 // AUTOMATICALLY GENERATED - DO NOT EDIT MANUALLY
@@ -15,7 +57,7 @@ final assetSoundFiles = [
   '67.mp3',
   'Chinese Phone Toy barbie Song.mp3',
   'action_sound.mp3',
-  'affrican_music.mp3',
+  'tribe_song.mp3',
   'all-of-tf2-laughing-at-you-at-once.mp3',
   'amogus.mp3',
   'and_his_name_is_john_cena.mp3',
@@ -30,7 +72,6 @@ final assetSoundFiles = [
   'balls_in_your_jaw.mp3',
   'bass.mp3',
   'batman_coming.mp3',
-  'black_friends.mp3',
   'bomb-has-been-planted-sound-effect-cs-go.mp3',
   'brainrot.mp3',
   'bro_calling.mp3',
@@ -39,13 +80,12 @@ final assetSoundFiles = [
   'cat-laugh-meme-1.mp3',
   'caveman_scream.mp3',
   'chilling_on_the_weekend.mp3',
-  'china_song.mp3',
+  'chinese_song.mp3',
   'clash_royal_start.mp3',
   'clash_royala_laguh.mp3',
   'clown_trumpet.mp3',
   'computer_beep.mp3',
   'connected.mp3',
-  'conversion_E5bEYlM.mp3',
   'cool_music.mp3',
   'crazy-realistic-knocking-sound-troll-twitch-streamers_small.mp3',
   'crazy_monkey.mp3',
@@ -322,7 +362,7 @@ final Map<String, List<String>> soundCategories = {
   'indian-christmas-2-0.mp3': ['music'],
   'indian-jingle-bells.mp3': ['music'],
   'arabic_music.mp3': ['music'],
-  'affrican_music.mp3': ['music'],
+  'tribe_song.mp3': ['music'],
   'titanic.mp3': ['music'],
   'evil_morty.mp3': ['music'],
   'romantic_saxofone.mp3': ['music'],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'sound_data.dart';
 
 class SoundButton extends StatefulWidget {
   final String soundName;
@@ -37,22 +38,6 @@ class _SoundButtonState extends State<SoundButton> {
   late Color _selectedColor;
   late List<String> _availableCategories;
 
-
-  final List<Color> _colorOptions = [
-    const Color(0xFF7BAFD4), // Pôvodná/default svetlá modrá farba
-    Colors.blueGrey.shade700,
-    Colors.blueAccent,
-    Colors.redAccent,
-    Colors.greenAccent,
-    Colors.orangeAccent,
-    Colors.purpleAccent,
-    Colors.pinkAccent,
-    Colors.tealAccent,
-    Colors.indigoAccent,
-    Colors.brown,
-    Colors.grey,
-  ];
-
   BannerAd? _bannerAd;
   bool _isBannerAdLoaded = false;
 
@@ -63,28 +48,34 @@ class _SoundButtonState extends State<SoundButton> {
     _selectedCategories = List.from(widget.categories);
     _selectedColor = widget.buttonColor;
     _availableCategories = List.from(widget.allCategories);
-    // ❌ Nepoužívame _loadBannerAd() tu - spomalilo by to celú aplikáciu!
-    // Reklama sa načíta až keď sa otvorí settings dialóg
+  }
+
+  @override
+  void didUpdateWidget(SoundButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Aktualizuj dostupné kategórie keď sa zmenia v parent widgete
+    if (widget.allCategories != oldWidget.allCategories) {
+      setState(() {
+        _availableCategories = List.from(widget.allCategories);
+        // Odstráň vymazané kategórie zo selected categories
+        _selectedCategories.removeWhere((cat) => !widget.allCategories.contains(cat));
+      });
+    }
   }
 
   void _loadBannerAd({VoidCallback? onLoaded}) {
     _bannerAd = BannerAd(
-      // TEST AD UNIT ID - Pre vývoj (zmeň na production ID po schválení AdMob účtu)
-      // Production ID: 'ca-app-pub-3948591512361475/4467483687'
-      adUnitId: 'ca-app-pub-3940256099942544/6300978111',
+      adUnitId: 'ca-app-pub-3940256099942544/6300978111', // TEST AD
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (ad) {
-          debugPrint('✅ Banner ad loaded successfully in Settings dialog');
           setState(() {
             _isBannerAdLoaded = true;
           });
-          // Zavolaj callback pre rebuild dialógu
           onLoaded?.call();
         },
         onAdFailedToLoad: (ad, error) {
-          debugPrint('❌ Banner ad failed to load in Settings dialog: $error');
           ad.dispose();
         },
       ),
@@ -100,6 +91,10 @@ class _SoundButtonState extends State<SoundButton> {
 
   void _openSettings() {
     final nameController = TextEditingController(text: _currentDisplayName);
+    // Lokálne kópie pre modal - zmeny sa prejavia až po Save
+    String tempDisplayName = _currentDisplayName;
+    List<String> tempSelectedCategories = List.from(_selectedCategories);
+    Color tempSelectedColor = _selectedColor;
 
     showModalBottomSheet(
       context: context,
@@ -110,10 +105,9 @@ class _SoundButtonState extends State<SoundButton> {
       builder: (context) =>
           StatefulBuilder(
             builder: (context, setModalState) {
-              // Načítaj reklamu len keď sa otvorí dialóg (len raz)
+              // Načítaj reklamu len raz
               if (_bannerAd == null && !_isBannerAdLoaded) {
                 _loadBannerAd(onLoaded: () {
-                  // Rebuild dialógu keď sa reklama načíta
                   setModalState(() {});
                 });
               }
@@ -127,7 +121,10 @@ class _SoundButtonState extends State<SoundButton> {
                       children: [
                         TextField(
                           controller: nameController,
-                          onChanged: (value) => _currentDisplayName = value,
+                          onChanged: (value) {
+                            // Len ulož do lokálnej premennej, NEupdatuj _currentDisplayName
+                            tempDisplayName = value;
+                          },
                           decoration: const InputDecoration(
                             labelText: 'Sound name',
                             border: OutlineInputBorder(),
@@ -148,7 +145,7 @@ class _SoundButtonState extends State<SoundButton> {
                                 .where((c) => c.toLowerCase() != 'everything')
                                 .map((category) {
                               final isSelected =
-                              _selectedCategories.contains(category);
+                              tempSelectedCategories.contains(category);
                               return FilterChip(
                                 label: Text(category),
                                 selected: isSelected,
@@ -160,9 +157,9 @@ class _SoundButtonState extends State<SoundButton> {
                                 onSelected: (selected) {
                                   setModalState(() {
                                     if (selected) {
-                                      _selectedCategories.add(category);
+                                      tempSelectedCategories.add(category);
                                     } else {
-                                      _selectedCategories.remove(category);
+                                      tempSelectedCategories.remove(category);
                                     }
                                   });
                                 },
@@ -213,8 +210,8 @@ class _SoundButtonState extends State<SoundButton> {
 
                                     _availableCategories.add(newCategory);
 
-                                    if (!_selectedCategories.contains(newCategory)) {
-                                      _selectedCategories.add(newCategory);
+                                    if (!tempSelectedCategories.contains(newCategory)) {
+                                      tempSelectedCategories.add(newCategory);
                                     }
                                   });
                                 }
@@ -233,13 +230,13 @@ class _SoundButtonState extends State<SoundButton> {
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: _colorOptions.map((color) {
+                          children: kColorPalette.map((color) {
                             final isSelected =
-                                _selectedColor.toARGB32() == color.toARGB32();
+                                tempSelectedColor.toARGB32() == color.toARGB32();
                             return GestureDetector(
                               onTap: () {
                                 setModalState(() {
-                                  _selectedColor = color;
+                                  tempSelectedColor = color;
                                 });
                               },
                               child: Container(
@@ -268,10 +265,18 @@ class _SoundButtonState extends State<SoundButton> {
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                           onPressed: () {
+                            // ✅ Teraz nastav skutočné state premenné
+                            setState(() {
+                              _currentDisplayName = tempDisplayName;
+                              _selectedCategories = tempSelectedCategories;
+                              _selectedColor = tempSelectedColor;
+                            });
+
+                            // Pošli update do parent widgetu
                             widget.onUpdate(
-                              _currentDisplayName,
-                              _selectedCategories,
-                              _selectedColor,
+                              tempDisplayName,
+                              tempSelectedCategories,
+                              tempSelectedColor,
                             );
                             Navigator.pop(context);
                           },
