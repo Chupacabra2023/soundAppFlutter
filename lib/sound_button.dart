@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'sound_data.dart';
+
+// ⚡ Globálne konštanty pre performance
+const _kButtonBorderRadius = BorderRadius.all(Radius.circular(12));
+const _kBottomBorderRadius = BorderRadius.vertical(bottom: Radius.circular(12));
+const _kButtonShadow = [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2))];
+const _kIconConstraints = BoxConstraints(minWidth: 24, minHeight: 24);
+const _kIconPadding = EdgeInsets.zero;
+const _kBottomPadding = EdgeInsets.symmetric(horizontal: 4);
 
 class SoundButton extends StatefulWidget {
   final String soundName;
@@ -33,67 +40,25 @@ class SoundButton extends StatefulWidget {
 }
 
 class _SoundButtonState extends State<SoundButton> {
+  // ⚡ Optimalizácia - len displayName a color v state, ostatné lazy load
   late String _currentDisplayName;
-  late List<String> _selectedCategories;
   late Color _selectedColor;
-  late List<String> _availableCategories;
-
-  BannerAd? _bannerAd;
-  bool _isBannerAdLoaded = false;
 
   @override
   void initState() {
     super.initState();
+    // ⚡ Len minimum v initState - ŽIADNE List.from()!
     _currentDisplayName = widget.displayName;
-    _selectedCategories = List.from(widget.categories);
     _selectedColor = widget.buttonColor;
-    _availableCategories = List.from(widget.allCategories);
-  }
-
-  @override
-  void didUpdateWidget(SoundButton oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Aktualizuj dostupné kategórie keď sa zmenia v parent widgete
-    if (widget.allCategories != oldWidget.allCategories) {
-      setState(() {
-        _availableCategories = List.from(widget.allCategories);
-        // Odstráň vymazané kategórie zo selected categories
-        _selectedCategories.removeWhere((cat) => !widget.allCategories.contains(cat));
-      });
-    }
-  }
-
-  void _loadBannerAd({VoidCallback? onLoaded}) {
-    _bannerAd = BannerAd(
-      adUnitId: 'ca-app-pub-3940256099942544/6300978111', // TEST AD
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          setState(() {
-            _isBannerAdLoaded = true;
-          });
-          onLoaded?.call();
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-        },
-      ),
-    );
-    _bannerAd?.load();
-  }
-
-  @override
-  void dispose() {
-    _bannerAd?.dispose();
-    super.dispose();
   }
 
   void _openSettings() {
     final nameController = TextEditingController(text: _currentDisplayName);
+    // ⚡ Vytvor kategórie až TU, nie v initState!
+    List<String> tempSelectedCategories = List.from(widget.categories);
+    List<String> tempAvailableCategories = List.from(widget.allCategories);
     // Lokálne kópie pre modal - zmeny sa prejavia až po Save
     String tempDisplayName = _currentDisplayName;
-    List<String> tempSelectedCategories = List.from(_selectedCategories);
     Color tempSelectedColor = _selectedColor;
 
     showModalBottomSheet(
@@ -105,13 +70,6 @@ class _SoundButtonState extends State<SoundButton> {
       builder: (context) =>
           StatefulBuilder(
             builder: (context, setModalState) {
-              // Načítaj reklamu len raz
-              if (_bannerAd == null && !_isBannerAdLoaded) {
-                _loadBannerAd(onLoaded: () {
-                  setModalState(() {});
-                });
-              }
-
               return Padding(
                   padding: const EdgeInsets.all(16),
                   child: SingleChildScrollView(
@@ -141,7 +99,7 @@ class _SoundButtonState extends State<SoundButton> {
                           spacing: 6,
                           runSpacing: 6,
                           children: [
-                            ..._availableCategories
+                            ...tempAvailableCategories
                                 .where((c) => c.toLowerCase() != 'everything')
                                 .map((category) {
                               final isSelected =
@@ -205,10 +163,10 @@ class _SoundButtonState extends State<SoundButton> {
 
                                 if (newCategory != null &&
                                     newCategory.isNotEmpty &&
-                                    !_availableCategories.contains(newCategory)) {
+                                    !tempAvailableCategories.contains(newCategory)) {
                                   setModalState(() {
 
-                                    _availableCategories.add(newCategory);
+                                    tempAvailableCategories.add(newCategory);
 
                                     if (!tempSelectedCategories.contains(newCategory)) {
                                       tempSelectedCategories.add(newCategory);
@@ -265,10 +223,9 @@ class _SoundButtonState extends State<SoundButton> {
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                           onPressed: () {
-                            // ✅ Teraz nastav skutočné state premenné
+                            // ✅ Teraz nastav skutočné state premenné (len displayName a color)
                             setState(() {
                               _currentDisplayName = tempDisplayName;
-                              _selectedCategories = tempSelectedCategories;
                               _selectedColor = tempSelectedColor;
                             });
 
@@ -282,17 +239,6 @@ class _SoundButtonState extends State<SoundButton> {
                           },
                           child: const Text('Save'),
                         ),
-
-                        // Banner Ad
-                        if (_isBannerAdLoaded && _bannerAd != null) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            alignment: Alignment.center,
-                            width: _bannerAd!.size.width.toDouble(),
-                            height: _bannerAd!.size.height.toDouble(),
-                            child: AdWidget(ad: _bannerAd!),
-                          ),
-                        ],
                       ],
                     ),
                   ),
@@ -310,10 +256,8 @@ class _SoundButtonState extends State<SoundButton> {
       child: Container(
         decoration: BoxDecoration(
           color: widget.buttonColor,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: const [
-            BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2))
-          ],
+          borderRadius: _kButtonBorderRadius,
+          boxShadow: _kButtonShadow,
         ),
         child: Column(
           children: [
@@ -357,13 +301,11 @@ class _SoundButtonState extends State<SoundButton> {
             Expanded(
               flex: 25, // Zväčšené z 20 na 25 (o trochu väčší spodný panel)
               child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.blueGrey.shade800,
-                  borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(12),
-                  ),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF546E7A), // Colors.blueGrey.shade800 ako const
+                  borderRadius: _kBottomBorderRadius,
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: _kBottomPadding,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -371,11 +313,8 @@ class _SoundButtonState extends State<SoundButton> {
                       icon: const Icon(Icons.settings,
                           color: Colors.white, size: 16),
                       onPressed: _openSettings,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 24,
-                        minHeight: 24,
-                      ),
+                      padding: _kIconPadding,
+                      constraints: _kIconConstraints,
                     ),
                     IconButton(
                       icon: Icon(
@@ -384,11 +323,8 @@ class _SoundButtonState extends State<SoundButton> {
                         size: 16,
                       ),
                       onPressed: widget.onToggleFavorite,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 24,
-                        minHeight: 24,
-                      ),
+                      padding: _kIconPadding,
+                      constraints: _kIconConstraints,
                     ),
                   ],
                 ),

@@ -838,48 +838,48 @@ class _SoundboardPageState extends State<SoundboardPage> {
                       mainAxisSpacing: 8,
                       childAspectRatio: 1.3,
                     ),
+                    addAutomaticKeepAlives: false, // ⚡ Dispose widgety mimo obrazovky
+                    addRepaintBoundaries: true, // ⚡ Automatické repaint boundaries
                     cacheExtent: 100, // ⚡ Redukuj počet off-screen widgetov
                     itemCount: _cachedFilteredSounds.length,
                     itemBuilder: (context, index) {
                       final sound = _cachedFilteredSounds[index];
-                      // ⚡ RepaintBoundary - izoluje widget od ostatných pre lepší performance
-                      return RepaintBoundary(
-                        child: SoundButton(
-                          key: ValueKey(sound['name']),
-                          soundName: sound['name'],
-                          displayName: sound['title'],
-                          buttonColor: _isDeleteMode
-                              ? Colors.redAccent
-                              : _parseColor(
-                            sound['color'] ?? '#42A5F5',
-                          ),
-                          categories: List<String>.from(
-                              sound['categories'] ?? []),
-                          isFavorite: sound['fav'] ?? false,
-                          allCategories: _categories,
-                          isPlaying: _currentSound == sound['name'], // Skontroluj či sa tento zvuk prehráva
-                          onPressed: () async {
-                            if (_isDeleteMode) {
-                              await deleteSound(sound['name']);
-                              setState(() {});
-                            } else {
-                              // Ak sa tento zvuk už prehráva, zastav ho
-                              if (_currentSound == sound['name']) {
-                                _stopSound();
-                              } else {
-                                // Inak prehraj zvuk
-                                _playSound(sound['name']);
-                              }
-                            }
-                          },
-                          onUpdate:
-                              (newTitle, newCategories, newColor) {
-                            _updateSound(sound['name'], newTitle,
-                                newCategories, newColor);
-                          },
-                          onToggleFavorite: () =>
-                              _toggleFavorite(sound['name']),
+                      // ⚡ addRepaintBoundaries: true robí to isté automaticky
+                      return SoundButton(
+                        key: ValueKey(sound['name']),
+                        soundName: sound['name'],
+                        displayName: sound['title'],
+                        buttonColor: _isDeleteMode
+                            ? Colors.redAccent
+                            : _parseColor(
+                          sound['color'] ?? '#42A5F5',
                         ),
+                        categories: List<String>.from(
+                            sound['categories'] ?? []),
+                        isFavorite: sound['fav'] ?? false,
+                        allCategories: _categories,
+                        isPlaying: _currentSound == sound['name'], // Skontroluj či sa tento zvuk prehráva
+                        onPressed: () async {
+                          if (_isDeleteMode) {
+                            await deleteSound(sound['name']);
+                            setState(() {});
+                          } else {
+                            // Ak sa tento zvuk už prehráva, zastav ho
+                            if (_currentSound == sound['name']) {
+                              _stopSound();
+                            } else {
+                              // Inak prehraj zvuk
+                              _playSound(sound['name']);
+                            }
+                          }
+                        },
+                        onUpdate:
+                            (newTitle, newCategories, newColor) {
+                          _updateSound(sound['name'], newTitle,
+                              newCategories, newColor);
+                        },
+                        onToggleFavorite: () =>
+                            _toggleFavorite(sound['name']),
                       );
                     },
                   ),
