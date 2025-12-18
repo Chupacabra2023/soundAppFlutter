@@ -551,8 +551,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    // ⚡ Cache screen width mimo GridView buildu
-    final screenWidth = MediaQuery.of(context).size.width;
+    // ⚡ Cache screen width - používaj sizeOf namiesto .of aby sa nerebuildovalo pri klávesnici!
+    final screenWidth = MediaQuery.sizeOf(context).width;
     final crossAxisCount = _calculateCrossAxisCount(screenWidth);
 
     return Scaffold(
