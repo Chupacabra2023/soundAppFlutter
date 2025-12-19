@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
+import 'app_localizations.dart';
+import 'main.dart';
+import 'add_soud_page.dart';
 
 class SettingsPage extends StatefulWidget {
   final List<String> categories;
   final VoidCallback onResetSounds;
   final Function(String category) onDeleteCategory;
+  final Function(String filePath, String title, List<String> categories, Color color) onAddSound;
 
   const SettingsPage({
     super.key,
     required this.categories,
     required this.onResetSounds,
     required this.onDeleteCategory,
+    required this.onAddSound,
   });
 
   @override
@@ -39,19 +44,82 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final currentLocale = Localizations.localeOf(context);
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.blueGrey[900],
-        title: const Text(
-          'Settings',
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          l10n.get('settings'),
+          style: const TextStyle(color: Colors.white),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // ➕ Add Sound Section
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.add_circle, color: Colors.blueGrey[800]),
+                      const SizedBox(width: 12),
+                      Text(
+                        l10n.get('addSound'),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.get('addSoundDesc'),
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey[800],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AddSoundPage(
+                              categories: widget.categories,
+                              onSoundAdded: (filePath, title, categories, color) async {
+                                widget.onAddSound(filePath, title, categories, color);
+                                Navigator.pop(context);
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.add),
+                      label: Text(l10n.get('addSound')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
           // 🔄 Reset Sounds Section
           Card(
             elevation: 2,
@@ -64,9 +132,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       Icon(Icons.refresh, color: Colors.blueGrey[800]),
                       const SizedBox(width: 12),
-                      const Text(
-                        'Reset Sounds',
-                        style: TextStyle(
+                      Text(
+                        l10n.get('resetSounds'),
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -74,9 +142,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'This will delete all current sounds and reload the original sounds with their categories.',
-                    style: TextStyle(color: Colors.grey),
+                  Text(
+                    l10n.get('resetSoundsDescription'),
+                    style: const TextStyle(color: Colors.grey),
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
@@ -92,14 +160,14 @@ class _SettingsPageState extends State<SettingsPage> {
                           context: context,
                           builder: (context) => AlertDialog(
                             backgroundColor: Colors.white,
-                            title: const Text('Reset sounds'),
-                            content: const Text(
-                              'This will delete all current sounds and reload the original sounds with their categories.\n\nDo you want to continue?',
+                            title: Text(l10n.get('resetConfirmTitle')),
+                            content: Text(
+                              l10n.get('resetConfirmMessage'),
                             ),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context, false),
-                                child: const Text('Cancel'),
+                                child: Text(l10n.get('cancel')),
                               ),
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(
@@ -107,7 +175,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                   foregroundColor: Colors.white,
                                 ),
                                 onPressed: () => Navigator.pop(context, true),
-                                child: const Text('Reset'),
+                                child: Text(l10n.get('reset')),
                               ),
                             ],
                           ),
@@ -122,7 +190,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         }
                       },
                       icon: const Icon(Icons.refresh),
-                      label: const Text('Reset to default sounds'),
+                      label: Text(l10n.get('resetToDefault')),
                     ),
                   ),
                 ],
@@ -144,9 +212,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       Icon(Icons.category, color: Colors.blueGrey[800]),
                       const SizedBox(width: 12),
-                      const Text(
-                        'Manage Categories',
-                        style: TextStyle(
+                      Text(
+                        l10n.get('manageCategories'),
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -154,9 +222,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Delete categories that you no longer need. All sounds with this category will lose it.',
-                    style: TextStyle(color: Colors.grey),
+                  Text(
+                    l10n.get('manageCategoriesDescription'),
+                    style: const TextStyle(color: Colors.grey),
                   ),
                   const SizedBox(height: 16),
 
@@ -178,20 +246,20 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete, color: Colors.redAccent),
-                          tooltip: 'Delete category',
+                          tooltip: l10n.get('deleteCategory'),
                           onPressed: () async {
                             final confirm = await showDialog<bool>(
                               context: context,
                               builder: (context) => AlertDialog(
                                 backgroundColor: Colors.white,
-                                title: const Text('Delete category'),
+                                title: Text(l10n.get('deleteCategory')),
                                 content: Text(
-                                  'Are you sure you want to delete "$category"?\n\nAll sounds with this category will lose it.',
+                                  l10n.get('deleteCategoryConfirm').replaceAll('{category}', category),
                                 ),
                                 actions: [
                                   TextButton(
                                     onPressed: () => Navigator.pop(context, false),
-                                    child: const Text('Cancel'),
+                                    child: Text(l10n.get('cancel')),
                                   ),
                                   ElevatedButton(
                                     style: ElevatedButton.styleFrom(
@@ -199,7 +267,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                       foregroundColor: Colors.white,
                                     ),
                                     onPressed: () => Navigator.pop(context, true),
-                                    child: const Text('Delete'),
+                                    child: Text(l10n.get('delete')),
                                   ),
                                 ],
                               ),
@@ -222,15 +290,95 @@ class _SettingsPageState extends State<SettingsPage> {
                   if (_localCategories
                       .where((cat) => cat.toLowerCase() != 'everything')
                       .isEmpty)
-                    const Center(
+                    Center(
                       child: Padding(
-                        padding: EdgeInsets.all(24),
+                        padding: const EdgeInsets.all(24),
                         child: Text(
-                          'No custom categories yet',
-                          style: TextStyle(color: Colors.grey),
+                          l10n.get('noCustomCategories'),
+                          style: const TextStyle(color: Colors.grey),
                         ),
                       ),
                     ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // 🌍 Language Selection Section
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.language, color: Colors.blueGrey[800]),
+                      const SizedBox(width: 12),
+                      Text(
+                        l10n.get('language'),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.get('selectLanguage'),
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: currentLocale.languageCode,
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'en',
+                        child: Row(
+                          children: [
+                            Text('🇬🇧', style: TextStyle(fontSize: 24)),
+                            SizedBox(width: 12),
+                            Text('English'),
+                          ],
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'sk',
+                        child: Row(
+                          children: [
+                            Text('🇸🇰', style: TextStyle(fontSize: 24)),
+                            SizedBox(width: 12),
+                            Text('Slovenčina'),
+                          ],
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'es',
+                        child: Row(
+                          children: [
+                            Text('🇪🇸', style: TextStyle(fontSize: 24)),
+                            SizedBox(width: 12),
+                            Text('Español'),
+                          ],
+                        ),
+                      ),
+                    ],
+                    onChanged: (String? value) {
+                      if (value != null) {
+                        MyApp.setLocale(context, Locale(value));
+                      }
+                    },
+                  ),
                 ],
               ),
             ),

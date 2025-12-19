@@ -1,0 +1,63 @@
+{
+  "@@locale": "en",
+  "appTitle": "Soundboard Studio",
+  "@appTitle": {
+    "description": "The application title"
+  },
+  "settings": "Settings",
+  "addSound": "Add Sound",
+  "loop": "Loop",
+  "playbackSpeed": "Playback Speed",
+  "deleteMode": "Delete mode",
+  "cancelDeleteMode": "Cancel delete mode",
+  "searchSounds": "Search sounds...",
+  "noSoundPlaying": "No sound playing",
+  "nowPlaying": "Now playing: {title}",
+  "@nowPlaying": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "filter": "Filter",
+  "search": "Search",
+  "soundsCount": "{count} sounds",
+  "@soundsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noSoundsFound": "No sounds found",
+  "tryChangingSearch": "Try changing your search or category",
+  "restoringSound": "Restoring sounds...",
+  "pleaseWait": "Please wait a moment",
+  "resetSounds": "Reset Sounds",
+  "resetSoundsDescription": "This will delete all current sounds and reload the original sounds with their categories.",
+  "resetToDefault": "Reset to default sounds",
+  "resetConfirmTitle": "Reset sounds",
+  "resetConfirmMessage": "This will delete all current sounds and reload the original sounds with their categories.\n\nDo you want to continue?",
+  "cancel": "Cancel",
+  "reset": "Reset",
+  "manageCategories": "Manage Categories",
+  "manageCategoriesDescription": "Delete categories that you no longer need. All sounds with this category will lose it.",
+  "deleteCategory": "Delete category",
+  "deleteCategoryConfirm": "Are you sure you want to delete \"{category}\"?\n\nAll sounds with this category will lose it.",
+  "@deleteCategoryConfirm": {
+    "placeholders": {
+      "category": {
+        "type": "String"
+      }
+    }
+  },
+  "delete": "Delete",
+  "noCustomCategories": "No custom categories yet",
+  "language": "Language",
+  "selectLanguage": "Select your preferred language",
+  "shufflePlay": "Shuffle Play",
+  "shufflePlayDescription": "Play random sounds continuously",
+  "everything": "everything",
+  "favorite": "favorite"
+}

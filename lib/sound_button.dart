@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'sound_data.dart';
+import 'app_localizations.dart';
 
 // ⚡ Globálne konštanty pre performance
 const _kButtonBorderRadius = BorderRadius.all(Radius.circular(12));
@@ -53,6 +54,7 @@ class _SoundButtonState extends State<SoundButton> {
   }
 
   void _openSettings() {
+    final l10n = AppLocalizations.of(context);
     final nameController = TextEditingController(text: _currentDisplayName);
     // ⚡ Vytvor kategórie až TU, nie v initState!
     List<String> tempSelectedCategories = List.from(widget.categories);
@@ -79,19 +81,20 @@ class _SoundButtonState extends State<SoundButton> {
                       children: [
                         TextField(
                           controller: nameController,
+                          maxLength: 30,
                           onChanged: (value) {
                             // Len ulož do lokálnej premennej, NEupdatuj _currentDisplayName
                             tempDisplayName = value;
                           },
-                          decoration: const InputDecoration(
-                            labelText: 'Sound name',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: l10n.get('soundName'),
+                            border: const OutlineInputBorder(),
                           ),
                         ),
                         const SizedBox(height: 16),
 
                         Text(
-                          'Categories',
+                          l10n.get('categories'),
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 8),
@@ -126,25 +129,26 @@ class _SoundButtonState extends State<SoundButton> {
 
                             ActionChip(
                               avatar: const Icon(Icons.add, size: 18),
-                              label: const Text('Add'),
+                              label: Text(l10n.get('add')),
                               onPressed: () async {
                                 final controller = TextEditingController();
                                 final newCategory = await showDialog<String>(
                                   context: context,
                                   builder: (context) {
                                     return AlertDialog(
-                                      title: const Text('New category'),
+                                      title: Text(l10n.get('newCategory')),
                                       content: TextField(
                                         controller: controller,
-                                        decoration: const InputDecoration(
-                                          hintText: 'Enter category name',
+                                        maxLength: 15,
+                                        decoration: InputDecoration(
+                                          hintText: l10n.get('enterCategoryName'),
                                         ),
                                       ),
                                       actions: [
                                         TextButton(
                                           onPressed: () =>
                                               Navigator.pop(context),
-                                          child: const Text('Cancel'),
+                                          child: Text(l10n.get('cancel')),
                                         ),
                                         ElevatedButton(
                                           onPressed: () {
@@ -154,7 +158,7 @@ class _SoundButtonState extends State<SoundButton> {
                                               Navigator.pop(context, value);
                                             }
                                           },
-                                          child: const Text('Add'),
+                                          child: Text(l10n.get('add')),
                                         ),
                                       ],
                                     );
@@ -180,7 +184,7 @@ class _SoundButtonState extends State<SoundButton> {
 
                         const SizedBox(height: 20),
                         Text(
-                          'Button color',
+                          l10n.get('buttonColor'),
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 8),
@@ -237,7 +241,7 @@ class _SoundButtonState extends State<SoundButton> {
                             );
                             Navigator.pop(context);
                           },
-                          child: const Text('Save'),
+                          child: Text(l10n.get('save')),
                         ),
                       ],
                     ),

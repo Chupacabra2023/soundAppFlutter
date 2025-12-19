@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'sound_button.dart';
-import 'add_soud_page.dart';
 import 'settings_page.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
@@ -10,6 +9,9 @@ import 'dart:io';
 import 'dart:convert';
 import 'sound_data.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'app_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,14 +19,64 @@ void main() {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
+  State<MyApp> createState() => _MyAppState();
+
+  static void setLocale(BuildContext context, Locale newLocale) {
+    _MyAppState? state = context.findAncestorStateOfType<_MyAppState>();
+    state?.setLocale(newLocale);
+  }
+}
+
+class _MyAppState extends State<MyApp> {
+  Locale? _locale;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLocale();
+  }
+
+  Future<void> _loadLocale() async {
+    final prefs = await SharedPreferences.getInstance();
+    final languageCode = prefs.getString('language_code') ?? 'en';
+    setState(() {
+      _locale = Locale(languageCode);
+    });
+  }
+
+  void setLocale(Locale locale) {
+    setState(() {
+      _locale = locale;
+    });
+    _saveLocale(locale);
+  }
+
+  Future<void> _saveLocale(Locale locale) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('language_code', locale.languageCode);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: SoundboardPage(),
+      locale: _locale,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en'),
+        Locale('sk'),
+        Locale('es'),
+      ],
+      home: const SoundboardPage(),
     );
   }
 }
@@ -41,8 +93,10 @@ class _SoundboardPageState extends State<SoundboardPage> {
   final ValueNotifier<double> _progressNotifier = ValueNotifier(0.0);
   Timer? _progressTimer;
   Timer? _debounceTimer; // Debounce timer pre search
+  Timer? _shuffleTimer; // Timer pre shuffle play
   String? _currentSound;
   bool _isLooping = false;
+  bool _isShufflePlay = false; // Shuffle play mode
   double _playbackRate = 1.0;
   String _searchQuery = '';
   bool _isDeleteMode = false;
@@ -144,8 +198,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
     } catch (e) {
       debugPrint('Error deleting sound: $e');
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting sound: $e')),
+          SnackBar(content: Text('${l10n.get('errorDeletingSound')} $e')),
         );
       }
     }
@@ -233,6 +288,15 @@ class _SoundboardPageState extends State<SoundboardPage> {
           _progressNotifier.value = 0.0; // ✅ Použij ValueNotifier
           _currentSound = null;
         });
+
+        // If shuffle play is enabled, play next random sound after a short delay
+        if (_isShufflePlay) {
+          _shuffleTimer = Timer(const Duration(milliseconds: 500), () {
+            if (_isShufflePlay && mounted) {
+              _playRandomSound();
+            }
+          });
+        }
       }
     });
   }
@@ -311,8 +375,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
         // File doesn't exist
         debugPrint('File does not exist: $filePath');
         if (mounted) {
+          final l10n = AppLocalizations.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('❌ File does not exist in storage')),
+            SnackBar(content: Text('❌ ${l10n.get('fileNotExist')}')),
           );
         }
         return;
@@ -335,8 +400,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
     } catch (e) {
       debugPrint('Error playing sound: $e');
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error playing sound: $e')),
+          SnackBar(content: Text('${l10n.get('errorPlayingSound')} $e')),
         );
       }
     }
@@ -540,10 +606,36 @@ class _SoundboardPageState extends State<SoundboardPage> {
     return 7;                        // Desktop / veľmi veľká obrazovka
   }
 
+  void _toggleShufflePlay() {
+    setState(() {
+      _isShufflePlay = !_isShufflePlay;
+
+      if (_isShufflePlay) {
+        // Start shuffle play - play a random sound immediately
+        _playRandomSound();
+      } else {
+        // Stop shuffle play - cancel timer and stop current sound
+        _shuffleTimer?.cancel();
+        _shuffleTimer = null;
+        _stopSound();
+      }
+    });
+  }
+
+  void _playRandomSound() {
+    if (_cachedFilteredSounds.isEmpty) return;
+
+    // Get a random sound from filtered sounds
+    final random = DateTime.now().millisecondsSinceEpoch % _cachedFilteredSounds.length;
+    final randomSound = _cachedFilteredSounds[random];
+    _playSound(randomSound['name']);
+  }
+
   @override
   void dispose() {
     _progressTimer?.cancel();
     _debounceTimer?.cancel(); // ✅ Dispose debounce timer
+    _shuffleTimer?.cancel(); // ✅ Dispose shuffle timer
     _player.dispose();
     _progressNotifier.dispose(); // ✅ Dispose ValueNotifier
     super.dispose();
@@ -551,6 +643,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     // ⚡ Cache screen width - používaj sizeOf namiesto .of aby sa nerebuildovalo pri klávesnici!
     final screenWidth = MediaQuery.sizeOf(context).width;
     final crossAxisCount = _calculateCrossAxisCount(screenWidth);
@@ -585,69 +678,41 @@ class _SoundboardPageState extends State<SoundboardPage> {
           ],
         ),
         actions: [
-          // ➕ PRIDAŤ HORE
-          IconButton(
-            icon: const Icon(Icons.add, color: Colors.white),
-            tooltip: 'Pridať zvuk',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AddSoundPage(
-                    categories: _categories,
-                    onSoundAdded:
-                        (filePath, title, categories, color) async {
-                      final savedFileName =
-                      await saveFileToPermanentStorage(filePath);
-                      setState(() {
-                        sounds.add({
-                          'name': savedFileName,
-                          'title': title.isNotEmpty ? title : savedFileName,
-                          'categories': categories,
-                          'fav': false,
-                          'color':
-                          '#${color.toARGB32().toRadixString(16).padLeft(8, '0')}',
-                        });
-                      });
-                      await saveSoundsToStorage();
-
-                      // Aktualizuj zoznam kategórií
-                      _rebuildCategoriesList();
-                      _updateFilteredSounds(); // ✅ Aktualizuj cache
-                    },
-                  ),
-                ),
-              );
-            },
-          ),
-
           IconButton(
             icon: Icon(
               _isLooping ? Icons.loop : Icons.loop_outlined,
               color: _isLooping ? Colors.lightBlueAccent : Colors.white,
             ),
             onPressed: _toggleLoop,
-            tooltip: 'Loop',
+            tooltip: l10n.get('loop'),
           ),
           PopupMenuButton<double>(
             icon: const Icon(Icons.speed, color: Colors.white),
-            tooltip: 'Playback Speed',
+            tooltip: l10n.get('playbackSpeed'),
             color: Colors.blueGrey[800],
             onSelected: _changeSpeed,
-            itemBuilder: (context) => const [
+            itemBuilder: (context) => [
               PopupMenuItem(
                 value: 0.5,
-                child: Text('0.5x Speed', style: TextStyle(color: Colors.white)),
+                child: Text(l10n.get('speed05'), style: const TextStyle(color: Colors.white)),
               ),
               PopupMenuItem(
                 value: 1.0,
-                child: Text('1.0x Normal', style: TextStyle(color: Colors.white)),
+                child: Text(l10n.get('speed10'), style: const TextStyle(color: Colors.white)),
               ),
               PopupMenuItem(
                 value: 2.0,
-                child: Text('2.0x Speed', style: TextStyle(color: Colors.white)),
+                child: Text(l10n.get('speed20'), style: const TextStyle(color: Colors.white)),
               ),
             ],
+          ),
+          IconButton(
+            icon: Icon(
+              _isShufflePlay ? Icons.shuffle : Icons.shuffle_outlined,
+              color: _isShufflePlay ? Colors.greenAccent : Colors.white,
+            ),
+            onPressed: _toggleShufflePlay,
+            tooltip: l10n.get('shufflePlay'),
           ),
           IconButton(
             icon: Icon(
@@ -659,12 +724,12 @@ class _SoundboardPageState extends State<SoundboardPage> {
                 _isDeleteMode = !_isDeleteMode;
               });
             },
-            tooltip: _isDeleteMode ? 'Cancel delete mode' : 'Delete mode',
+            tooltip: _isDeleteMode ? l10n.get('cancelDeleteMode') : l10n.get('deleteMode'),
           ),
           // ⚙️ Settings button
           IconButton(
             icon: const Icon(Icons.settings, color: Colors.white),
-            tooltip: 'Settings',
+            tooltip: l10n.get('settings'),
             onPressed: () {
               Navigator.push(
                 context,
@@ -673,6 +738,23 @@ class _SoundboardPageState extends State<SoundboardPage> {
                     categories: _categories,
                     onResetSounds: _resetSounds,
                     onDeleteCategory: _deleteCategory,
+                    onAddSound: (filePath, title, categories, color) async {
+                      final savedFileName =
+                          await saveFileToPermanentStorage(filePath);
+                      setState(() {
+                        sounds.add({
+                          'name': savedFileName,
+                          'title': title.isNotEmpty ? title : savedFileName,
+                          'categories': categories,
+                          'fav': false,
+                          'color':
+                              '#${color.toARGB32().toRadixString(16).padLeft(8, '0')}',
+                        });
+                      });
+                      await saveSoundsToStorage();
+                      _rebuildCategoriesList();
+                      _updateFilteredSounds();
+                    },
                   ),
                 ),
               );
@@ -690,10 +772,10 @@ class _SoundboardPageState extends State<SoundboardPage> {
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: TextField(
-                  decoration: const InputDecoration(
-                    hintText: 'Search sounds...',
-                    prefixIcon: Icon(Icons.search),
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    hintText: l10n.get('searchSounds'),
+                    prefixIcon: const Icon(Icons.search),
+                    border: const OutlineInputBorder(),
                   ),
                   onChanged: (value) {
                     // ⚡ Debouncing - zruš predchádzajúci timer
@@ -723,14 +805,14 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         Expanded(
                           child: Text(
                             _currentSound == null
-                                ? "No sound playing"
+                                ? l10n.get('noSoundPlaying')
                                 : () {
                                     // Nájdi sound v zozname a zobraz title namiesto file name
                                     final sound = sounds.firstWhere(
                                       (s) => s['name'] == _currentSound,
                                       orElse: () => {'title': _currentSound!.split('/').last},
                                     );
-                                    return "Now playing: ${sound['title']}";
+                                    return "${l10n.get('nowPlaying')} ${sound['title']}";
                                   }(),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                             overflow: TextOverflow.ellipsis,
@@ -776,7 +858,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                 child: Row(
                   children: [
                     Text(
-                      'Filter: $_selectedCategory',
+                      '${l10n.get('filter')} $_selectedCategory',
                       style: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 12,
@@ -785,7 +867,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                     if (_searchQuery.isNotEmpty) ...[
                       const SizedBox(width: 16),
                       Text(
-                        'Search: "$_searchQuery"',
+                        '${l10n.get('search')} "$_searchQuery"',
                         style: TextStyle(
                           color: Colors.grey[600],
                           fontSize: 12,
@@ -794,7 +876,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                     ],
                     const Spacer(),
                     Text(
-                      '${_cachedFilteredSounds.length} sounds',
+                      '${_cachedFilteredSounds.length} ${l10n.get('soundsCount')}',
                       style: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 12,
@@ -811,22 +893,22 @@ class _SoundboardPageState extends State<SoundboardPage> {
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: _cachedFilteredSounds.isEmpty
-                      ? const Center(
+                      ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.audiotrack,
+                        const Icon(Icons.audiotrack,
                             size: 64, color: Colors.grey),
-                        SizedBox(height: 16),
+                        const SizedBox(height: 16),
                         Text(
-                          'No sounds found',
+                          l10n.get('noSoundsFound'),
                           style:
-                          TextStyle(fontSize: 18, color: Colors.grey),
+                          const TextStyle(fontSize: 18, color: Colors.grey),
                         ),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         Text(
-                          'Try changing your search or category',
-                          style: TextStyle(color: Colors.grey),
+                          l10n.get('tryChangingSearch'),
+                          style: const TextStyle(color: Colors.grey),
                         ),
                       ],
                     ),
@@ -902,7 +984,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         const CircularProgressIndicator(),
                         const SizedBox(height: 16),
                         Text(
-                          'Restoring sounds...',
+                          l10n.get('restoringSound'),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -911,7 +993,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Please wait a moment',
+                          l10n.get('pleaseWait'),
                           style: TextStyle(
                             color: Colors.grey[600],
                           ),

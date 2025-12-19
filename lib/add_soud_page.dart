@@ -5,6 +5,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'dart:io';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'sound_data.dart';
+import 'app_localizations.dart';
 
 class AddSoundPage extends StatefulWidget {
   final List<String> categories;
@@ -138,6 +139,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
   }
 
   void _addNewCategory() async {
+    final l10n = AppLocalizations.of(context);
     final TextEditingController newCatController = TextEditingController();
 
     final newCategory = await showDialog<String>(
@@ -145,17 +147,18 @@ class _AddSoundPageState extends State<AddSoundPage> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: Colors.blueGrey[900],
-          title: const Text('Add new category', style: TextStyle(color: Colors.white)),
+          title: Text(l10n.get('addNewSound'), style: const TextStyle(color: Colors.white)),
           content: TextField(
             controller: newCatController,
+            maxLength: 15,
             style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
-              hintText: 'Category name',
-              hintStyle: TextStyle(color: Colors.white54),
-              enabledBorder: UnderlineInputBorder(
+            decoration: InputDecoration(
+              hintText: l10n.get('categoryName'),
+              hintStyle: const TextStyle(color: Colors.white54),
+              enabledBorder: const UnderlineInputBorder(
                 borderSide: BorderSide(color: Colors.white38),
               ),
-              focusedBorder: UnderlineInputBorder(
+              focusedBorder: const UnderlineInputBorder(
                 borderSide: BorderSide(color: Colors.white),
               ),
             ),
@@ -163,7 +166,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+              child: Text(l10n.get('cancel'), style: const TextStyle(color: Colors.white70)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -173,7 +176,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
                 final value = newCatController.text.trim();
                 if (value.isNotEmpty) Navigator.pop(context, value);
               },
-              child: const Text('Add', style: TextStyle(color: Colors.white70)),
+              child: Text(l10n.get('add'), style: const TextStyle(color: Colors.white70)),
             ),
           ],
         );
@@ -246,13 +249,14 @@ class _AddSoundPageState extends State<AddSoundPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.blueGrey[900],
-        title: const Text(
-          'Add new sound',
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          l10n.get('addNewSound'),
+          style: const TextStyle(color: Colors.white),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -279,7 +283,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
                           ),
                           onPressed: _isRecording ? _stopRecording : _startRecording,
                           icon: Icon(_isRecording ? Icons.stop : Icons.mic),
-                          label: Text(_isRecording ? 'Stop recording' : 'Record'),
+                          label: Text(_isRecording ? l10n.get('stopRecording') : l10n.get('record')),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -287,14 +291,14 @@ class _AddSoundPageState extends State<AddSoundPage> {
                         onPressed: _playSound,
                         icon: const Icon(Icons.play_arrow),
                         color: Colors.blueGrey[800],
-                        tooltip: 'Play',
+                        tooltip: l10n.get('play'),
                       ),
                       const SizedBox(width: 8),
                       IconButton(
                         onPressed: _pickFile,
                         icon: const Icon(Icons.upload_file),
                         color: Colors.blueGrey[800],
-                        tooltip: 'Pick file',
+                        tooltip: l10n.get('pickFile'),
                       ),
                     ],
                   ),
@@ -304,8 +308,9 @@ class _AddSoundPageState extends State<AddSoundPage> {
                   // 📝 Name input
                   TextField(
                     controller: _nameController,
+                    maxLength: 30,
                     decoration: InputDecoration(
-                      labelText: 'Sound name',
+                      labelText: l10n.get('soundName'),
                       labelStyle: TextStyle(color: Colors.grey[700]),
                       border: const OutlineInputBorder(),
                       focusedBorder: OutlineInputBorder(
@@ -320,15 +325,15 @@ class _AddSoundPageState extends State<AddSoundPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Categories',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      Text(
+                        l10n.get('categories'),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       IconButton(
                         onPressed: _addNewCategory,
                         icon: const Icon(Icons.add),
                         color: Colors.blueGrey[800],
-                        tooltip: 'Add category',
+                        tooltip: l10n.get('addCategory'),
                       ),
                     ],
                   ),
@@ -364,9 +369,9 @@ class _AddSoundPageState extends State<AddSoundPage> {
                   const SizedBox(height: 20),
 
                   // 🎨 Color picker
-                  const Text(
-                    'Button color',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  Text(
+                    l10n.get('buttonColor'),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 10),
                   Wrap(
@@ -410,7 +415,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
                     ),
                     onPressed: _saveSound,
                     icon: const Icon(Icons.save),
-                    label: const Text('Save sound'),
+                    label: Text(l10n.get('saveSound')),
                   ),
                 ],
               ),

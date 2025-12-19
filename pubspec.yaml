@@ -11,6 +11,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
   just_audio: ^0.9.39
   rxdart: ^0.27.7
   audio_video_progress_bar: ^2.0.3
@@ -20,6 +23,7 @@ dependencies:
   path_provider: ^2.1.1
   permission_handler: ^11.0.1
   google_mobile_ads: ^5.2.0
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
@@ -34,5 +38,6 @@ dependency_overrides:
 
 flutter:
   uses-material-design: true
+  generate: false
   assets:
     - assets/
