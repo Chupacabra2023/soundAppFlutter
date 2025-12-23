@@ -12,7 +12,8 @@
       "Bash(flutter build:*)",
       "Bash(flutter run:*)",
       "Bash(flutter pub get:*)",
-      "Bash(del nul)"
+      "Bash(del nul)",
+      "Bash(cat:*)"
     ]
   }
 }

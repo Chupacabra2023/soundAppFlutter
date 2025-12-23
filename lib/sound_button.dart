@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'sound_data.dart';
 import 'app_localizations.dart';
 
@@ -45,12 +46,40 @@ class _SoundButtonState extends State<SoundButton> {
   late String _currentDisplayName;
   late Color _selectedColor;
 
+  BannerAd? _bannerAd;
+  bool _isBannerAdLoaded = false;
+
   @override
   void initState() {
     super.initState();
     // ⚡ Len minimum v initState - ŽIADNE List.from()!
     _currentDisplayName = widget.displayName;
     _selectedColor = widget.buttonColor;
+    _loadBannerAd();
+  }
+
+  void _loadBannerAd() {
+    if (_bannerAd != null) return;
+
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-3940256099942544/6300978111',
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (mounted) {
+            setState(() {
+              _isBannerAdLoaded = true;
+            });
+          }
+        },
+        onAdFailedToLoad: (ad, error) {
+          debugPrint('❌ Banner ad failed: $error');
+          ad.dispose();
+        },
+      ),
+    );
+    _bannerAd?.load();
   }
 
   void _openSettings() {
@@ -63,16 +92,32 @@ class _SoundButtonState extends State<SoundButton> {
     String tempDisplayName = _currentDisplayName;
     Color tempSelectedColor = _selectedColor;
 
-    showModalBottomSheet(
+    // 🐛 DEBUG: Počítadlo rebuildov
+    int rebuildCount = 0;
+
+    showDialog(
       context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) =>
-          StatefulBuilder(
-            builder: (context, setModalState) {
-              return Padding(
+      barrierDismissible: true,
+      builder: (buildContext) {
+        rebuildCount++;
+        debugPrint('🔄 REBUILD #$rebuildCount (DIALOG)');
+
+        return Dialog(
+          alignment: Alignment.bottomCenter,
+          insetPadding: EdgeInsets.zero,
+          backgroundColor: Colors.transparent,
+          child: Container(
+            width: double.infinity,
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.7,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: StatefulBuilder(
+              builder: (context, setModalState) {
+                return Padding(
                   padding: const EdgeInsets.all(16),
                   child: SingleChildScrollView(
                     child: Column(
@@ -243,12 +288,31 @@ class _SoundButtonState extends State<SoundButton> {
                           },
                           child: Text(l10n.get('save')),
                         ),
+
+                        // Banner Ad pod Save button
+                        const SizedBox(height: 16),
+                        if (_isBannerAdLoaded && _bannerAd != null)
+                          Container(
+                            alignment: Alignment.center,
+                            width: _bannerAd!.size.width.toDouble(),
+                            height: _bannerAd!.size.height.toDouble(),
+                            child: AdWidget(ad: _bannerAd!),
+                          )
+                        else
+                          Container(
+                            alignment: Alignment.center,
+                            height: 50,
+                            child: const CircularProgressIndicator(),
+                          ),
                       ],
                     ),
                   ),
                 );
               },
+            ),
           ),
+        );
+      },
     );
 
   }
@@ -340,8 +404,11 @@ class _SoundButtonState extends State<SoundButton> {
     );
   }
 
-
-
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
+  }
 }
 
 

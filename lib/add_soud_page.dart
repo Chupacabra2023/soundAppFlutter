@@ -22,6 +22,9 @@ class AddSoundPage extends StatefulWidget {
 }
 
 class _AddSoundPageState extends State<AddSoundPage> {
+  // 🐛 DEBUG: Počítadlo rebuildov
+  static int _rebuildCount = 0;
+
   final _record = AudioRecorder();
   final _player = AudioPlayer();
   String? _filePath;
@@ -29,10 +32,13 @@ class _AddSoundPageState extends State<AddSoundPage> {
   final TextEditingController _nameController = TextEditingController();
   final List<String> _selectedCategories = [];
 
-  Color _selectedColor = const Color(0xFF7BAFD4); // Default pôvodná farba
+  Color _selectedColor = const Color(0xFF7BAFD4);
 
   BannerAd? _bannerAd;
   bool _isBannerAdLoaded = false;
+
+  // ✅ FocusNode pre sledovanie focusu na TextField
+  final FocusNode _nameFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -42,17 +48,17 @@ class _AddSoundPageState extends State<AddSoundPage> {
 
   void _loadBannerAd() {
     _bannerAd = BannerAd(
-      // TEST AD UNIT ID - Pre vývoj (zmeň na production ID po schválení AdMob účtu)
-      // Production ID: 'ca-app-pub-3948591512361475/7085908168'
       adUnitId: 'ca-app-pub-3940256099942544/6300978111',
-      size: AdSize.largeBanner, // Menšia reklama (320x100) - nezasahuje do klavesnice
+      size: AdSize.largeBanner,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (ad) {
           debugPrint('✅ Banner ad loaded successfully on Add Sound page');
-          setState(() {
-            _isBannerAdLoaded = true;
-          });
+          if (mounted) {
+            setState(() {
+              _isBannerAdLoaded = true;
+            });
+          }
         },
         onAdFailedToLoad: (ad, error) {
           debugPrint('❌ Banner ad failed to load on Add Sound page: $error');
@@ -69,6 +75,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
     _record.dispose();
     _player.dispose();
     _nameController.dispose();
+    _nameFocusNode.dispose(); // ✅ Dispose FocusNode
     super.dispose();
   }
 
@@ -205,7 +212,6 @@ class _AddSoundPageState extends State<AddSoundPage> {
 
     try {
       final extension = _filePath!.split('.').last;
-      // Sanitize file name - remove special characters that could cause path issues
       final cleanName = _nameController.text.trim()
           .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
           .replaceAll(' ', '_');
@@ -219,13 +225,11 @@ class _AddSoundPageState extends State<AddSoundPage> {
 
       final finalPath = '${Directory.systemTemp.path}/$cleanName.$extension';
 
-      // Check if file already exists and delete it first to avoid conflicts
       final targetFile = File(finalPath);
       if (await targetFile.exists()) {
         await targetFile.delete();
       }
 
-      // Rename the file
       await File(_filePath!).rename(finalPath);
 
       widget.onSoundAdded(
@@ -249,8 +253,15 @@ class _AddSoundPageState extends State<AddSoundPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 🐛 DEBUG: Počítadlo rebuildov
+    _rebuildCount++;
+    debugPrint('➕ ADD SOUND PAGE REBUILD #$_rebuildCount');
+
     final l10n = AppLocalizations.of(context);
+
     return Scaffold(
+      // ⚡ Zastaví rebuildy pri klavesnici!
+      resizeToAvoidBottomInset: false,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.blueGrey[900],
@@ -308,6 +319,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
                   // 📝 Name input
                   TextField(
                     controller: _nameController,
+                    focusNode: _nameFocusNode, // ✅ Pridaj FocusNode
                     maxLength: 30,
                     decoration: InputDecoration(
                       labelText: l10n.get('soundName'),
@@ -422,7 +434,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
             ),
           ),
 
-          // Banner Ad - fixed at bottom
+          // Banner Ad - fixne na spodku
           if (_isBannerAdLoaded && _bannerAd != null)
             Container(
               alignment: Alignment.center,

@@ -22,6 +22,9 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  // 🐛 DEBUG: Počítadlo rebuildov
+  static int _rebuildCount = 0;
+
   late List<String> _localCategories;
 
   @override
@@ -44,6 +47,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 🐛 DEBUG: Počítadlo rebuildov
+    _rebuildCount++;
+    debugPrint('⚙️ SETTINGS PAGE REBUILD #$_rebuildCount');
+
     final l10n = AppLocalizations.of(context);
     final currentLocale = Localizations.localeOf(context);
 
