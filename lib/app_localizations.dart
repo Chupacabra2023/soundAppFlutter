@@ -68,6 +68,9 @@ class AppLocalizations {
       'speed05': '0.5x Speed',
       'speed10': '1.0x Normal',
       'speed20': '2.0x Speed',
+      'privacySettings': 'Privacy Settings',
+      'privacySettingsDesc': 'Manage your ad personalization preferences',
+      'managePrivacy': 'Manage Privacy',
     },
     'sk': {
       'settings': 'Nastavenia',
@@ -124,6 +127,9 @@ class AppLocalizations {
       'speed05': '0.5x Rýchlosť',
       'speed10': '1.0x Normálna',
       'speed20': '2.0x Rýchlosť',
+      'privacySettings': 'Nastavenia súkromia',
+      'privacySettingsDesc': 'Spravujte svoje preferencie personalizácie reklám',
+      'managePrivacy': 'Spravovať súkromie',
     },
     'es': {
       'settings': 'Configuración',
@@ -180,6 +186,9 @@ class AppLocalizations {
       'speed05': '0.5x Velocidad',
       'speed10': '1.0x Normal',
       'speed20': '2.0x Velocidad',
+      'privacySettings': 'Configuración de privacidad',
+      'privacySettingsDesc': 'Administra tus preferencias de personalización de anuncios',
+      'managePrivacy': 'Gestionar privacidad',
     },
   };
 

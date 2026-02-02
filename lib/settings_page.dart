@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'app_localizations.dart';
 import 'main.dart';
 import 'add_soud_page.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class SettingsPage extends StatefulWidget {
   final List<String> categories;
@@ -306,6 +307,58 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       ),
                     ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+// 🔒 Privacy Settings Section
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.privacy_tip, color: Colors.blueGrey[800]),
+                      const SizedBox(width: 12),
+                      Text(
+                        l10n.get('privacySettings'),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.get('privacySettingsDesc'),
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey[800],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () {
+                        ConsentForm.showPrivacyOptionsForm((formError) {
+                          if (formError != null) {
+                            debugPrint('Privacy form error: ${formError.message}');
+                          }
+                        });
+                      },
+                      icon: const Icon(Icons.settings),
+                      label: Text(l10n.get('managePrivacy')),
+                    ),
+                  ),
                 ],
               ),
             ),

@@ -13,7 +13,16 @@
       "Bash(flutter run:*)",
       "Bash(flutter pub get:*)",
       "Bash(del nul)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(while read commit)",
+      "Bash(do git show $commit:android/app/src/main/AndroidManifest.xml)",
+      "Bash(echo:*)",
+      "Bash(git push:*)",
+      "Bash(git for-each-ref:*)",
+      "Bash(xargs -r -n 1 git update-ref -d)",
+      "Bash(git reflog:*)",
+      "Bash(git gc:*)",
+      "Bash(du:*)"
     ]
   }
 }

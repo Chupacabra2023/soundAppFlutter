@@ -12,11 +12,33 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:flutter/material.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   MobileAds.instance.initialize();
   runApp(const MyApp());
+  _initializeConsent();
+}
+void _initializeConsent() {
+  final params = ConsentRequestParameters();
+
+  ConsentInformation.instance.requestConsentInfoUpdate(
+    params,
+        () async {
+      if (await ConsentInformation.instance.isConsentFormAvailable()) {
+        ConsentForm.loadAndShowConsentFormIfRequired((formError) {
+          if (formError != null) {
+            debugPrint('Consent form error: ${formError.message}');
+          }
+        });
+      }
+    },
+        (error) {
+      debugPrint('Consent info error: ${error.message}');
+    },
+  );
 }
 
 class MyApp extends StatefulWidget {
@@ -689,6 +711,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
         ),
         actions: [
           IconButton(
+            visualDensity: VisualDensity.compact,
             icon: Icon(
               _isLooping ? Icons.loop : Icons.loop_outlined,
               color: _isLooping ? Colors.lightBlueAccent : Colors.white,
@@ -717,6 +740,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
             ],
           ),
           IconButton(
+            visualDensity: VisualDensity.compact,
             icon: Icon(
               _isShufflePlay ? Icons.shuffle : Icons.shuffle_outlined,
               color: _isShufflePlay ? Colors.greenAccent : Colors.white,
@@ -725,6 +749,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
             tooltip: l10n.get('shufflePlay'),
           ),
           IconButton(
+            visualDensity: VisualDensity.compact,
             icon: Icon(
               _isDeleteMode ? Icons.close : Icons.delete,
               color: _isDeleteMode ? Colors.redAccent : Colors.white,
@@ -738,6 +763,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
           ),
           // ⚙️ Settings button
           IconButton(
+            visualDensity: VisualDensity.compact,
             icon: const Icon(Icons.settings, color: Colors.white),
             tooltip: l10n.get('settings'),
             onPressed: () {
@@ -770,7 +796,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
               );
             },
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 3),
         ],
       ),
 

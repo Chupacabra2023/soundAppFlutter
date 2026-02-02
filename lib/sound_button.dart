@@ -356,7 +356,7 @@ class _SoundButtonState extends State<SoundButton> {
                     : Text(
                         _currentDisplayName,
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
