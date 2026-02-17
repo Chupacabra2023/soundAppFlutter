@@ -111,9 +111,6 @@ class SoundboardPage extends StatefulWidget {
 }
 
 class _SoundboardPageState extends State<SoundboardPage> {
-  // 🐛 DEBUG: Počítadlo rebuildov
-  static int _rebuildCount = 0;
-
   final AudioPlayer _player = AudioPlayer();
   final ValueNotifier<double> _progressNotifier = ValueNotifier(0.0);
   Timer? _progressTimer;
@@ -668,12 +665,6 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 🐛 DEBUG: Počítadlo rebuildov (BEZ MediaQuery aby sme nerebuildovali!)
-    _rebuildCount++;
-    debugPrint('═══════════════════════════════════════════════════');
-    debugPrint('🔍 POZADIE REBUILD #$_rebuildCount');
-    debugPrint('═══════════════════════════════════════════════════');
-
     final l10n = AppLocalizations.of(context);
     // ⚡ Cache screen width - používaj sizeOf namiesto .of aby sa nerebuildovalo pri klávesnici!
     final screenWidth = MediaQuery.sizeOf(context).width;
@@ -697,8 +688,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
               onChanged: (String? newValue) {
                 setState(() {
                   _selectedCategory = newValue!;
-                  _updateFilteredSounds(); // ✅ Aktualizuj cache
                 });
+                _updateFilteredSounds();
               },
               items: _categories.map<DropdownMenuItem<String>>((String value) {
                 return DropdownMenuItem<String>(
@@ -820,10 +811,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
                     // Vytvor nový timer s 300ms oneskorením
                     _debounceTimer = Timer(const Duration(milliseconds: 300), () {
                       if (mounted) {
-                        setState(() {
-                          _searchQuery = value;
-                          _updateFilteredSounds(); // ✅ Aktualizuj cache
-                        });
+                        _searchQuery = value;
+                        _updateFilteredSounds();
+                        setState(() {});
                       }
                     });
                   },

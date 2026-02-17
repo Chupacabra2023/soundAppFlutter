@@ -46,40 +46,11 @@ class _SoundButtonState extends State<SoundButton> {
   late String _currentDisplayName;
   late Color _selectedColor;
 
-  BannerAd? _bannerAd;
-  bool _isBannerAdLoaded = false;
-
   @override
   void initState() {
     super.initState();
-    // ⚡ Len minimum v initState - ŽIADNE List.from()!
     _currentDisplayName = widget.displayName;
     _selectedColor = widget.buttonColor;
-    _loadBannerAd();
-  }
-
-  void _loadBannerAd() {
-    if (_bannerAd != null) return;
-
-    _bannerAd = BannerAd(
-      adUnitId: 'ca-app-pub-3940256099942544/6300978111',
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          if (mounted) {
-            setState(() {
-              _isBannerAdLoaded = true;
-            });
-          }
-        },
-        onAdFailedToLoad: (ad, error) {
-          debugPrint('❌ Banner ad failed: $error');
-          ad.dispose();
-        },
-      ),
-    );
-    _bannerAd?.load();
   }
 
   void _openSettings() {
@@ -92,16 +63,14 @@ class _SoundButtonState extends State<SoundButton> {
     String tempDisplayName = _currentDisplayName;
     Color tempSelectedColor = _selectedColor;
 
-    // 🐛 DEBUG: Počítadlo rebuildov
-    int rebuildCount = 0;
+    // Lazy-loaded reklama - načíta sa až teraz
+    BannerAd? dialogBannerAd;
+    bool isBannerLoaded = false;
 
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (buildContext) {
-        rebuildCount++;
-        debugPrint('🔄 REBUILD #$rebuildCount (DIALOG)');
-
         return Dialog(
           alignment: Alignment.bottomCenter,
           insetPadding: EdgeInsets.zero,
@@ -117,6 +86,25 @@ class _SoundButtonState extends State<SoundButton> {
             ),
             child: StatefulBuilder(
               builder: (context, setModalState) {
+                // Načítaj reklamu len raz pri prvom builde
+                if (dialogBannerAd == null) {
+                  dialogBannerAd = BannerAd(
+                    adUnitId: 'ca-app-pub-3948591512361475/4467483687',
+                    size: AdSize.banner,
+                    request: const AdRequest(),
+                    listener: BannerAdListener(
+                      onAdLoaded: (ad) {
+                        setModalState(() {
+                          isBannerLoaded = true;
+                        });
+                      },
+                      onAdFailedToLoad: (ad, error) {
+                        ad.dispose();
+                      },
+                    ),
+                  );
+                  dialogBannerAd!.load();
+                }
                 return Padding(
                   padding: const EdgeInsets.all(16),
                   child: SingleChildScrollView(
@@ -289,14 +277,14 @@ class _SoundButtonState extends State<SoundButton> {
                           child: Text(l10n.get('save')),
                         ),
 
-                        // Banner Ad pod Save button
+                        // Banner Ad pod Save button - lazy loaded
                         const SizedBox(height: 16),
-                        if (_isBannerAdLoaded && _bannerAd != null)
+                        if (isBannerLoaded && dialogBannerAd != null)
                           Container(
                             alignment: Alignment.center,
-                            width: _bannerAd!.size.width.toDouble(),
-                            height: _bannerAd!.size.height.toDouble(),
-                            child: AdWidget(ad: _bannerAd!),
+                            width: dialogBannerAd!.size.width.toDouble(),
+                            height: dialogBannerAd!.size.height.toDouble(),
+                            child: AdWidget(ad: dialogBannerAd!),
                           )
                         else
                           Container(
@@ -313,8 +301,10 @@ class _SoundButtonState extends State<SoundButton> {
           ),
         );
       },
-    );
-
+    ).then((_) {
+      // Uvoľni reklamu keď sa dialóg zatvorí
+      dialogBannerAd?.dispose();
+    });
   }
 
   @override
@@ -406,7 +396,6 @@ class _SoundButtonState extends State<SoundButton> {
 
   @override
   void dispose() {
-    _bannerAd?.dispose();
     super.dispose();
   }
 }
