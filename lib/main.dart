@@ -120,6 +120,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
   bool _isLooping = false;
   bool _isShufflePlay = false; // Shuffle play mode
   double _playbackRate = 1.0;
+  int _totalDurationMs = 0; // Celkové trvanie aktuálneho zvuku v ms
   String _searchQuery = '';
   bool _isDeleteMode = false;
   bool _isResetting = false; // Loading state pre reset
@@ -412,11 +413,15 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
       final duration = await _player.getDuration();
       if (duration != null && duration.inMilliseconds > 0) {
+        _totalDurationMs = duration.inMilliseconds;
         _startFakeProgress(duration.inMilliseconds);
       } else {
         _player.onDurationChanged.first.then((d) {
           final length = d.inMilliseconds;
-          if (length > 0) _startFakeProgress(length);
+          if (length > 0) {
+            _totalDurationMs = length;
+            _startFakeProgress(length);
+          }
         });
       }
     } catch (e) {
@@ -430,10 +435,11 @@ class _SoundboardPageState extends State<SoundboardPage> {
     }
   }
 
-  void _startFakeProgress(int milliseconds) {
+  void _startFakeProgress(int milliseconds, {double startFrom = 0.0}) {
     _progressTimer?.cancel();
 
     int adjustedMilliseconds = (milliseconds / _playbackRate).toInt();
+    final remainingMs = (adjustedMilliseconds * (1.0 - startFrom)).toInt();
     final start = DateTime.now();
 
     _progressTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
@@ -444,7 +450,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
       }
 
       final elapsed = DateTime.now().difference(start).inMilliseconds;
-      final p = (elapsed / adjustedMilliseconds).clamp(0.0, 1.0);
+      final p = (startFrom + (elapsed / adjustedMilliseconds)).clamp(0.0, 1.0);
 
       _progressNotifier.value = p; // ✅ Len aktualizuj notifier - ŽIADNE setState!
 
@@ -460,6 +466,13 @@ class _SoundboardPageState extends State<SoundboardPage> {
         }
       }
     });
+  }
+
+  void _seekTo(double position) {
+    if (_currentSound == null || _totalDurationMs == 0) return;
+    final seekMs = (position * _totalDurationMs).toInt();
+    _player.seek(Duration(milliseconds: seekMs));
+    _startFakeProgress(_totalDurationMs, startFrom: position);
   }
 
 
@@ -488,6 +501,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
   void _stopSound() {
     _progressTimer?.cancel();
     _progressNotifier.value = 0.0; // ✅ Resetuj progress mimo setState
+    _totalDurationMs = 0;
     _player.stop().then((_) {
       if (mounted) {
         setState(() {
@@ -849,27 +863,51 @@ class _SoundboardPageState extends State<SoundboardPage> {
                               color: Colors.blue, size: 16),
                         if (_currentSound != null)
                           const SizedBox(width: 4),
-                        Text(
-                          '${_playbackRate}x',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+                        GestureDetector(
+                          onTap: () {
+                            if (_playbackRate == 1.0) {
+                              _changeSpeed(2.0);
+                            } else if (_playbackRate == 2.0) {
+                              _changeSpeed(0.5);
+                            } else {
+                              _changeSpeed(1.0);
+                            }
+                          },
+                          child: Text(
+                            '${_playbackRate}x',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     SizedBox(
                       width: double.infinity,
                       child: ValueListenableBuilder<double>(
                         valueListenable: _progressNotifier,
                         builder: (context, progress, child) {
-                          return LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 8,
-                            backgroundColor: Colors.grey.shade300,
-                            color: Colors.blueAccent,
+                          return SliderTheme(
+                            data: SliderThemeData(
+                              trackHeight: 6,
+                              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                              activeTrackColor: Colors.blueAccent,
+                              inactiveTrackColor: Colors.grey.shade300,
+                              thumbColor: Colors.blueAccent,
+                              overlayColor: Colors.blueAccent.withAlpha(40),
+                            ),
+                            child: Slider(
+                              value: progress,
+                              onChanged: _currentSound != null
+                                  ? (value) {
+                                      _seekTo(value);
+                                    }
+                                  : null,
+                            ),
                           );
                         },
                       ),
