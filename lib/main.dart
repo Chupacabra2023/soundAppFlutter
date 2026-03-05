@@ -97,6 +97,7 @@ class _MyAppState extends State<MyApp> {
         Locale('en'),
         Locale('sk'),
         Locale('es'),
+        Locale('fr'),
       ],
       home: const SoundboardPage(),
     );
@@ -485,16 +486,12 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
 
   Future<void> _changeSpeed(double speed) async {
+    final currentProgress = _progressNotifier.value;
     setState(() => _playbackRate = speed);
     await _player.setPlaybackRate(speed);
 
-    if (_currentSound != null) {
-      // ⏸️ stopni aktuálny zvuk
-      await _player.stop();
-      _progressTimer?.cancel();
-
-      // ▶️ prehráme od začiatku s novou rýchlosťou
-      await _playSound(_currentSound!);
+    if (_currentSound != null && _totalDurationMs > 0) {
+      _startFakeProgress(_totalDurationMs, startFrom: currentProgress);
     }
   }
 
@@ -582,11 +579,28 @@ class _SoundboardPageState extends State<SoundboardPage> {
   // Funkcia na odstránenie kategórie
   void _deleteCategory(String category) {
     setState(() {
-      // Odstráň kategóriu zo všetkých zvukov
       for (var sound in sounds) {
         final categories = List<String>.from(sound['categories'] ?? []);
         categories.remove(category);
         sound['categories'] = categories;
+      }
+    });
+
+    saveSoundsToStorage();
+    _rebuildCategoriesList();
+    _updateFilteredSounds();
+  }
+
+  // Funkcia na premenovanie kategórie
+  void _renameCategory(String oldName, String newName) {
+    setState(() {
+      for (var sound in sounds) {
+        final categories = List<String>.from(sound['categories'] ?? []);
+        final index = categories.indexOf(oldName);
+        if (index != -1) {
+          categories[index] = newName;
+          sound['categories'] = categories;
+        }
       }
     });
 
@@ -779,6 +793,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                     categories: _categories,
                     onResetSounds: _resetSounds,
                     onDeleteCategory: _deleteCategory,
+                    onRenameCategory: _renameCategory,
                     onAddSound: (filePath, title, categories, color) async {
                       final savedFileName =
                           await saveFileToPermanentStorage(filePath);

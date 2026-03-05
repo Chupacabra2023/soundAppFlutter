@@ -120,8 +120,16 @@ class _AddSoundPageState extends State<AddSoundPage> {
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(type: FileType.audio);
     if (result != null) {
+      final file = result.files.single;
+      final nameWithoutExt = file.name.contains('.')
+          ? file.name.substring(0, file.name.lastIndexOf('.'))
+          : file.name;
+      final cleanedName = nameWithoutExt.replaceAll('_', ' ').replaceAll('-', ' ');
       setState(() {
-        _filePath = result.files.single.path;
+        _filePath = file.path;
+        if (_nameController.text.trim().isEmpty) {
+          _nameController.text = cleanedName;
+        }
       });
     }
   }
@@ -196,9 +204,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
   }
 
   void _saveSound() async {
-    if (_filePath == null ||
-        _nameController.text.trim().isEmpty ||
-        _selectedCategories.isEmpty) {
+    if (_filePath == null || _nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('❌ Please fill all fields')),
       );

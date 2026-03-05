@@ -8,6 +8,7 @@ class SettingsPage extends StatefulWidget {
   final List<String> categories;
   final VoidCallback onResetSounds;
   final Function(String category) onDeleteCategory;
+  final Function(String oldName, String newName) onRenameCategory;
   final Function(String filePath, String title, List<String> categories, Color color) onAddSound;
 
   const SettingsPage({
@@ -15,6 +16,7 @@ class SettingsPage extends StatefulWidget {
     required this.categories,
     required this.onResetSounds,
     required this.onDeleteCategory,
+    required this.onRenameCategory,
     required this.onAddSound,
   });
 
@@ -245,44 +247,89 @@ class _SettingsPageState extends State<SettingsPage> {
                           category,
                           style: const TextStyle(fontWeight: FontWeight.w500),
                         ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.redAccent),
-                          tooltip: l10n.get('deleteCategory'),
-                          onPressed: () async {
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                backgroundColor: Colors.white,
-                                title: Text(l10n.get('deleteCategory')),
-                                content: Text(
-                                  l10n.get('deleteCategoryConfirm').replaceAll('{category}', category),
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context, false),
-                                    child: Text(l10n.get('cancel')),
-                                  ),
-                                  ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.redAccent,
-                                      foregroundColor: Colors.white,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: Icon(Icons.edit, color: Colors.blueGrey[700]),
+                              tooltip: l10n.get('editCategory'),
+                              onPressed: () async {
+                                final controller = TextEditingController(text: category);
+                                final newName = await showDialog<String>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    backgroundColor: Colors.white,
+                                    title: Text(l10n.get('editCategory')),
+                                    content: TextField(
+                                      controller: controller,
+                                      autofocus: true,
+                                      decoration: InputDecoration(
+                                        labelText: l10n.get('newCategoryName'),
+                                        border: const OutlineInputBorder(),
+                                      ),
                                     ),
-                                    onPressed: () => Navigator.pop(context, true),
-                                    child: Text(l10n.get('delete')),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: Text(l10n.get('cancel')),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () => Navigator.pop(context, controller.text.trim()),
+                                        child: Text(l10n.get('save')),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            );
+                                );
 
-                            if (confirm == true) {
-                              setState(() {
-                                // Odstráň z lokálneho zoznamu pre okamžitú UI aktualizáciu
-                                _localCategories.remove(category);
-                              });
-                              // Zavolaj callback pre update v main.dart
-                              widget.onDeleteCategory(category);
-                            }
-                          },
+                                if (newName != null && newName.isNotEmpty && newName != category) {
+                                  setState(() {
+                                    final index = _localCategories.indexOf(category);
+                                    if (index != -1) {
+                                      _localCategories[index] = newName;
+                                    }
+                                  });
+                                  widget.onRenameCategory(category, newName);
+                                }
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.redAccent),
+                              tooltip: l10n.get('deleteCategory'),
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    backgroundColor: Colors.white,
+                                    title: Text(l10n.get('deleteCategory')),
+                                    content: Text(
+                                      l10n.get('deleteCategoryConfirm').replaceAll('{category}', category),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context, false),
+                                        child: Text(l10n.get('cancel')),
+                                      ),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.redAccent,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        onPressed: () => Navigator.pop(context, true),
+                                        child: Text(l10n.get('delete')),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (confirm == true) {
+                                  setState(() {
+                                    _localCategories.remove(category);
+                                  });
+                                  widget.onDeleteCategory(category);
+                                }
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -418,6 +465,16 @@ class _SettingsPageState extends State<SettingsPage> {
                             Text('🇪🇸', style: TextStyle(fontSize: 24)),
                             SizedBox(width: 12),
                             Text('Español'),
+                          ],
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'fr',
+                        child: Row(
+                          children: [
+                            Text('🇫🇷', style: TextStyle(fontSize: 24)),
+                            SizedBox(width: 12),
+                            Text('Français'),
                           ],
                         ),
                       ),

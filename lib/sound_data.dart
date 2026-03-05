@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 // Data version - zvýš toto číslo keď zmeníš defaultné zvuky
 // Aplikácia automaticky resetuje zvuky pri zmene verzie
-const int DATA_VERSION = 11;
+const int DATA_VERSION = 12;
 
 // 🎨 Globálna paleta farieb pre tlačidlá (použitá v SoundButton a AddSoundPage)
 const List<Color> kColorPalette = [
@@ -57,7 +57,6 @@ final assetSoundFiles = [
   '67.mp3',
   'Chinese Phone Toy barbie Song.mp3',
   'action_sound.mp3',
-  'tribe_song.mp3',
   'all-of-tf2-laughing-at-you-at-once.mp3',
   'amogus.mp3',
   'and_his_name_is_john_cena.mp3',
@@ -122,6 +121,7 @@ final assetSoundFiles = [
   'fart1.mp3',
   'fbi_openup.mp3',
   'flex_sound.mp3',
+  'focus_on_career_not_girls.mp3',
   'french-meme-song.mp3',
   'funky.mp3',
   'gangsta_paradise.mp3',
@@ -131,6 +131,7 @@ final assetSoundFiles = [
   'go_crazy_go_stupid.mp3',
   'go_go_go.mp3',
   'god_damn.mp3',
+  'goo_goo_gaga.mp3',
   'goofy_ass_fall.mp3',
   'goofy_ass_sounds.mp3',
   'goofy_falling.mp3',
@@ -231,7 +232,6 @@ final assetSoundFiles = [
   'rizz2.mp3',
   'roblox_mnam.mp3',
   'romanceeeeeeeeeeeeee.mp3',
-  'romantic_saxofone.mp3',
   'ronaldo.mp3',
   'run-vine-sound-effect.mp3',
   'saaaaaa100.mp3',
@@ -261,7 +261,6 @@ final assetSoundFiles = [
   'somedy_shitted_his_pants.mp3',
   'sonic-exe-laugh.mp3',
   'sore_1.mp3',
-  'sound-9______.mp3',
   'spiderman.mp3',
   'spongebob_failure.mp3',
   'spongebob_failure_2.mp3',
@@ -289,6 +288,7 @@ final assetSoundFiles = [
   'to_be_continued.mp3',
   'travis.mp3',
   'trembling_sound_effect.mp3',
+  'tribe_song.mp3',
   'truck_beep.mp3',
   'tung_sahur.mp3',
   'ultimate_idk.mp3',
@@ -298,6 +298,7 @@ final assetSoundFiles = [
   'visit_your_mother.mp3',
   'vizg-svini.mp3',
   'waitwait.mp3',
+  'wake_up_samurai.mp3',
   'walk_to_poland.mp3',
   'wanna-see-a-magic-trick-tf2.mp3',
   'we-are-charlie-kirk-song.mp3',
@@ -309,6 +310,7 @@ final assetSoundFiles = [
   'what_the_dog_doin.mp3',
   'what_up_guys.mp3',
   'whip.mp3',
+  'why_are_we_still_here.mp3',
   'why_are_you_gay.mp3',
   'why_are_you_running.mp3',
   'why_you_bullying_me.mp3',
@@ -365,7 +367,6 @@ final Map<String, List<String>> soundCategories = {
   'tribe_song.mp3': ['music'],
   'titanic.mp3': ['music'],
   'evil_morty.mp3': ['music'],
-  'romantic_saxofone.mp3': ['music'],
   'western.mp3': ['music'],
   'dexter-song-2.mp3': ['music'],
   'to_be_continued.mp3': ['music', 'meme'],
@@ -404,6 +405,10 @@ final Map<String, List<String>> soundCategories = {
   'victory-tf2.mp3': ['game'],
   'wanna-see-a-magic-trick-tf2.mp3': ['game'],
   'you-are-dead-not-big-surprise-sound-effect.mp3': ['game'],
+  'wake_up_samurai.mp3': ['game'],
+  'why_are_we_still_here.mp3': ['game'],
+  'focus_on_career_not_girls.mp3': ['meme'],
+  'goo_goo_gaga.mp3': ['meme'],
 
   // ========== SOUND EFFECTS ==========
   'explosion.mp3': ['sound effects'],
