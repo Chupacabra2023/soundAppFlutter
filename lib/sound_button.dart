@@ -292,7 +292,7 @@ class _SoundButtonState extends State<SoundButton> {
                                 width: 42,
                                 height: 42,
                                 decoration: BoxDecoration(
-                                  color: isSelected ? Colors.white : Colors.transparent,
+                                  color: isSelected ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87) : Colors.transparent,
                                   shape: BoxShape.circle,
                                 ),
                                 padding: const EdgeInsets.all(3),

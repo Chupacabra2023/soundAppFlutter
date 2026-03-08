@@ -227,10 +227,18 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
           // Verzia sedí - načítaj uložené zvuky
           final soundsList = data['sounds'] ?? data; // Backward compatibility
+          final loadedList = List<Map<String, dynamic>>.from(soundsList is List ? soundsList : []);
+          // Migrate sounds missing 'id' field (backward compatibility)
+          final int migrationBase = DateTime.now().millisecondsSinceEpoch;
+          for (int i = 0; i < loadedList.length; i++) {
+            if (loadedList[i]['id'] == null) {
+              loadedList[i]['id'] = 'migrated_${migrationBase + i}';
+            }
+          }
           setState(() {
             sounds
               ..clear()
-              ..addAll(List<Map<String, dynamic>>.from(soundsList is List ? soundsList : []));
+              ..addAll(loadedList);
           });
           debugPrint('Loaded ${sounds.length} sounds from JSON (version: $savedVersion)');
         }
@@ -243,10 +251,14 @@ class _SoundboardPageState extends State<SoundboardPage> {
     }
   }
 
-  Future<void> deleteSound(String soundName) async {
+  Future<void> deleteSound(String soundId) async {
     try {
+      final soundIndex = sounds.indexWhere((s) => s['id'] == soundId);
+      if (soundIndex == -1) return;
+      final soundName = sounds[soundIndex]['name'] as String;
+
       // Ak sa práve prehráva tento zvuk, zastav ho
-      if (_currentSound == soundName) {
+      if (_currentSound == soundId) {
         _stopSound();
       }
 
@@ -261,7 +273,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
       }
 
       // Remove from list
-      sounds.removeWhere((s) => s['name'] == soundName);
+      sounds.removeWhere((s) => s['id'] == soundId);
 
       // Update JSON
       await saveSoundsToStorage();
@@ -302,11 +314,14 @@ class _SoundboardPageState extends State<SoundboardPage> {
   // Initialize default sounds only if JSON doesn't exist or is empty
   Future<void> _initializeSounds() async {
     try {
+      int idBase = DateTime.now().millisecondsSinceEpoch;
+      int idCounter = 0;
       sounds
         ..clear()
         ..addAll(defaultSounds.map((sound) {
           // Deep copy každého zvuku, aby sme nemodifikovali originálne defaultSounds
           return {
+            'id': 'def_${idBase + idCounter++}',
             'name': sound['name'],
             'title': sound['title'],
             'categories': List<String>.from(sound['categories'] ?? []),
@@ -415,18 +430,20 @@ class _SoundboardPageState extends State<SoundboardPage> {
     }
   }
 
-  Future<void> _playSound(String name) async {
+  Future<void> _playSound(String soundId) async {
     try {
       await _player.stop();
       if (!mounted) return;
       await _player.setPlaybackRate(_playbackRate);
       await _player.setReleaseMode(ReleaseMode.release);
 
-      // Look up trim for this sound
+      // Look up sound by ID
       final soundData = sounds.firstWhere(
-        (s) => s['name'] == name,
+        (s) => s['id'] == soundId,
         orElse: () => <String, dynamic>{},
       );
+      if (soundData.isEmpty) return;
+      final String name = soundData['name'] as String;
       final int startMs = soundData['startMs'] ?? 0;
       final int? endMs = soundData['endMs'] as int?;
 
@@ -451,7 +468,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
       }
 
       setState(() {
-        _currentSound = name;
+        _currentSound = soundId;
       });
       _progressNotifier.value = 0.0;
 
@@ -544,7 +561,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
     if (_currentSound == null || _totalDurationMs == 0) return;
 
     final soundData = sounds.firstWhere(
-      (s) => s['name'] == _currentSound,
+      (s) => s['id'] == _currentSound,
       orElse: () => <String, dynamic>{},
     );
     final int startMs = soundData['startMs'] ?? 0;
@@ -573,7 +590,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
     if (_currentSound != null && _totalDurationMs > 0) {
       final soundData = sounds.firstWhere(
-        (s) => s['name'] == _currentSound,
+        (s) => s['id'] == _currentSound,
         orElse: () => <String, dynamic>{},
       );
       _startFakeProgress(
@@ -599,10 +616,10 @@ class _SoundboardPageState extends State<SoundboardPage> {
     });
   }
   // Funkcia na aktualizáciu zvuku
-  void _updateSound(String oldName, String newTitle, List<String> newCategories,
+  void _updateSound(String soundId, String newTitle, List<String> newCategories,
       Color newColor, int newStartMs, int? newEndMs) {
     setState(() {
-      final soundIndex = sounds.indexWhere((s) => s['name'] == oldName);
+      final soundIndex = sounds.indexWhere((s) => s['id'] == soundId);
       if (soundIndex != -1) {
         sounds[soundIndex]['title'] = newTitle;
         sounds[soundIndex]['categories'] = newCategories;
@@ -665,25 +682,49 @@ class _SoundboardPageState extends State<SoundboardPage> {
   }
 
   // Funkcia na odstránenie kategórie
-  void _deleteCategory(String category, bool deleteSounds) {
-    setState(() {
-      if (deleteSounds) {
-        sounds.removeWhere((sound) {
-          final cats = List<String>.from(sound['categories'] ?? []);
+  Future<void> _deleteCategory(String category, bool deleteSounds) async {
+    if (deleteSounds) {
+      // Zisti ktoré zvuky sa majú vymazať
+      final toDelete = sounds.where((s) {
+        final cats = List<String>.from(s['categories'] ?? []);
+        return cats.contains(category);
+      }).toList();
+
+      // Zastav prehrávanie ak sa prehráva niektorý z mazaných zvukov
+      if (_currentSound != null) {
+        final isPlayingDeleted = toDelete.any((s) => s['id'] == _currentSound);
+        if (isPlayingDeleted) _stopSound();
+      }
+
+      // Vymaž fyzické súbory
+      final dir = await getApplicationDocumentsDirectory();
+      for (final sound in toDelete) {
+        final file = File('${dir.path}/${sound['name']}');
+        if (await file.exists()) await file.delete();
+      }
+
+      // Odstráň zo zoznamu
+      setState(() {
+        sounds.removeWhere((s) {
+          final cats = List<String>.from(s['categories'] ?? []);
           return cats.contains(category);
         });
-      } else {
+      });
+    } else {
+      // Len odstráň kategóriu zo zvukov, nemaž buttony
+      setState(() {
         for (var sound in sounds) {
           final categories = List<String>.from(sound['categories'] ?? []);
           categories.remove(category);
           sound['categories'] = categories;
         }
-      }
-    });
+      });
+    }
 
-    saveSoundsToStorage();
-    _rebuildCategoriesList();
+    await saveSoundsToStorage();
+    _rebuildCategoriesList();   // tiež vyzmaže prázdne kategórie z UI
     _updateFilteredSounds();
+    if (mounted) setState(() {}); // zaruč rebuild gridu
   }
 
   // Funkcia na premenovanie kategórie
@@ -705,9 +746,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
   }
 
   // Funkcia na prepnutie obľúbených
-  void _toggleFavorite(String soundName) {
+  void _toggleFavorite(String soundId) {
     setState(() {
-      final soundIndex = sounds.indexWhere((s) => s['name'] == soundName);
+      final soundIndex = sounds.indexWhere((s) => s['id'] == soundId);
       if (soundIndex != -1) {
         final sound = sounds[soundIndex];
         final isFav = sound['fav'] ?? false;
@@ -773,7 +814,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
     // Get a random sound from filtered sounds
     final random = DateTime.now().millisecondsSinceEpoch % _cachedFilteredSounds.length;
     final randomSound = _cachedFilteredSounds[random];
-    _playSound(randomSound['name']);
+    _playSound(randomSound['id']);
   }
 
   @override
@@ -854,6 +895,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         final savedFileName = await saveFileToPermanentStorage(filePath);
                         setState(() {
                           sounds.add({
+                            'id': 'user_${DateTime.now().millisecondsSinceEpoch}_${sounds.length}',
                             'name': savedFileName,
                             'title': title.isNotEmpty ? title : savedFileName,
                             'categories': categories,
@@ -966,11 +1008,13 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         category,
                         style: TextStyle(
                           fontSize: 12,
-                          color: isSelected ? Colors.white : (isDark ? Colors.white : Colors.black87),
+                          color: isSelected
+                              ? (isDark ? Colors.black87 : Colors.white)
+                              : (isDark ? Colors.white : Colors.black87),
                         ),
                       ),
                       selected: isSelected,
-                      selectedColor: Colors.blueGrey[600],
+                      selectedColor: isDark ? Colors.white : Colors.blueGrey[600],
                       backgroundColor: isDark ? Colors.blueGrey[700] : Colors.grey[200],
                       showCheckmark: false,
                       onSelected: (_) {
@@ -1014,8 +1058,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
                                 : () {
                                     // Nájdi sound v zozname a zobraz title namiesto file name
                                     final sound = sounds.firstWhere(
-                                      (s) => s['name'] == _currentSound,
-                                      orElse: () => {'title': _currentSound!.split('/').last},
+                                      (s) => s['id'] == _currentSound,
+                                      orElse: () => {'title': _currentSound},
                                     );
                                     return "${l10n.get('nowPlaying')} ${sound['title']}";
                                   }(),
@@ -1124,7 +1168,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                       final sound = _cachedFilteredSounds[index];
                       // ⚡ addRepaintBoundaries: true robí to isté automaticky
                       return SoundButton(
-                        key: ValueKey(sound['name']),
+                        key: ValueKey(sound['id']),
                         soundName: sound['name'],
                         displayName: sound['title'],
                         buttonColor: _isDeleteMode
@@ -1135,26 +1179,26 @@ class _SoundboardPageState extends State<SoundboardPage> {
                             sound['categories'] ?? []),
                         isFavorite: sound['fav'] ?? false,
                         allCategories: _categories,
-                        isPlaying: _currentSound == sound['name'],
+                        isPlaying: _currentSound == sound['id'],
                         startMs: sound['startMs'] ?? 0,
                         endMs: sound['endMs'] as int?,
                         onPressed: () async {
                           if (_isDeleteMode) {
-                            await deleteSound(sound['name']);
+                            await deleteSound(sound['id']);
                             setState(() {});
                           } else {
-                            if (_currentSound == sound['name']) {
+                            if (_currentSound == sound['id']) {
                               _stopSound();
                             } else {
-                              _playSound(sound['name']);
+                              _playSound(sound['id']);
                             }
                           }
                         },
                         onUpdate: (newTitle, newCategories, newColor, newStartMs, newEndMs) {
-                          _updateSound(sound['name'], newTitle, newCategories, newColor, newStartMs, newEndMs);
+                          _updateSound(sound['id'], newTitle, newCategories, newColor, newStartMs, newEndMs);
                         },
                         onToggleFavorite: () =>
-                            _toggleFavorite(sound['name']),
+                            _toggleFavorite(sound['id']),
                       );
                     },
                   ),

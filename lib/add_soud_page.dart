@@ -191,8 +191,8 @@ class _AddSoundPageState extends State<AddSoundPage> {
         }
       });
 
-      // Trim only for single file
-      if (_selectedFiles.length == 1) {
+      // Načítaj duration prvého súboru pre trim slider
+      if (_selectedFiles.isNotEmpty) {
         await _fetchDuration(_selectedFiles.first.path);
       }
     }
@@ -284,8 +284,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
     }
 
     try {
-      final isSingle = _selectedFiles.length == 1;
-      final hasTrim = isSingle && _fileDurationMs > 0 &&
+      final hasTrim = _fileDurationMs > 0 &&
           (_trimStartMs > 0 || _trimEndMs < _fileDurationMs);
 
       for (final entry in _selectedFiles) {
@@ -408,8 +407,8 @@ class _AddSoundPageState extends State<AddSoundPage> {
 
                   const SizedBox(height: 16),
 
-                  // ✂️ Trim slider — len pre 1 súbor
-                  if (isSingle && _fileDurationMs > 0) ...[
+                  // ✂️ Trim slider
+                  if (_fileDurationMs > 0) ...[
                     Text(
                       l10n.get('trimSound'),
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -555,7 +554,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
                           width: 42,
                           height: 42,
                           decoration: BoxDecoration(
-                            color: isSelected ? Colors.white : Colors.transparent,
+                            color: isSelected ? (isDark ? Colors.white : Colors.black87) : Colors.transparent,
                             shape: BoxShape.circle,
                           ),
                           padding: const EdgeInsets.all(3),

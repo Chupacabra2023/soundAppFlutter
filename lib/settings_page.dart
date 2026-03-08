@@ -111,14 +111,19 @@ class _SettingsPageState extends State<SettingsPage> {
                           context: context,
                           builder: (context) => AlertDialog(
                             backgroundColor: Colors.white,
-                            title: Text(l10n.get('resetConfirmTitle')),
+                            title: Text(
+                              l10n.get('resetConfirmTitle'),
+                              style: const TextStyle(color: Colors.black87),
+                            ),
                             content: Text(
                               l10n.get('resetConfirmMessage'),
+                              style: const TextStyle(color: Colors.black87),
                             ),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context, false),
-                                child: Text(l10n.get('cancel')),
+                                child: Text(l10n.get('cancel'),
+                                    style: const TextStyle(color: Colors.black54)),
                               ),
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(
