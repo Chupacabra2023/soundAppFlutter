@@ -12,11 +12,11 @@
   "nowPlaying": "En cours : {title}",
   "filter": "Filtrer",
   "search": "Rechercher",
-  "soundsCount": "{count} sons",
+  "soundsCount": "{count} son(s)",
   "noSoundsFound": "Aucun son trouvé",
-  "tryChangingSearch": "Essayez de modifier votre recherche ou catégorie",
+  "tryChangingSearch": "Modifiez votre recherche ou catégorie",
   "restoringSound": "Restauration des sons...",
-  "pleaseWait": "Veuillez patienter un moment",
+  "pleaseWait": "Patientez un instant",
   "resetSounds": "Réinitialiser les sons",
   "resetSoundsDescription": "Cela supprimera tous les sons actuels et rechargera les sons originaux avec leurs catégories.",
   "resetToDefault": "Réinitialiser aux sons par défaut",
@@ -33,7 +33,7 @@
   "language": "Langue",
   "selectLanguage": "Sélectionnez votre langue préférée",
   "shufflePlay": "Lecture aléatoire",
-  "shufflePlayDescription": "Lire des sons aléatoires en continu",
+  "shufflePlayDescription": "Lecture aléatoire en continu",
   "everything": "tout",
   "favorite": "favori"
 }

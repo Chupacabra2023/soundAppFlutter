@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import 'app_localizations.dart';
 import 'main.dart';
-import 'add_soud_page.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class SettingsPage extends StatefulWidget {
   final List<String> categories;
   final VoidCallback onResetSounds;
-  final Function(String category) onDeleteCategory;
+  final Function(String category, bool deleteSounds) onDeleteCategory;
   final Function(String oldName, String newName) onRenameCategory;
-  final Function(String filePath, String title, List<String> categories, Color color) onAddSound;
 
   const SettingsPage({
     super.key,
@@ -17,7 +15,6 @@ class SettingsPage extends StatefulWidget {
     required this.onResetSounds,
     required this.onDeleteCategory,
     required this.onRenameCategory,
-    required this.onAddSound,
   });
 
   @override
@@ -59,70 +56,21 @@ class _SettingsPageState extends State<SettingsPage> {
           style: const TextStyle(color: Colors.white),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: Icon(
+              Theme.of(context).brightness == Brightness.dark
+                  ? Icons.light_mode
+                  : Icons.dark_mode,
+              color: Colors.white,
+            ),
+            onPressed: () => MyApp.toggleThemeStatic(context),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ➕ Add Sound Section
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.add_circle, color: Colors.blueGrey[800]),
-                      const SizedBox(width: 12),
-                      Text(
-                        l10n.get('addSound'),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.get('addSoundDesc'),
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueGrey[800],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AddSoundPage(
-                              categories: widget.categories,
-                              onSoundAdded: (filePath, title, categories, color) async {
-                                widget.onAddSound(filePath, title, categories, color);
-                                Navigator.pop(context);
-                              },
-                            ),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.add),
-                      label: Text(l10n.get('addSound')),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
           // 🔄 Reset Sounds Section
           Card(
             elevation: 2,
@@ -237,7 +185,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       .map((category) {
                     return Card(
                       margin: const EdgeInsets.only(bottom: 8),
-                      color: Colors.grey[100],
                       child: ListTile(
                         leading: Icon(
                           Icons.label,
@@ -258,7 +205,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 final newName = await showDialog<String>(
                                   context: context,
                                   builder: (context) => AlertDialog(
-                                    backgroundColor: Colors.white,
+                                    backgroundColor: Theme.of(context).cardColor,
                                     title: Text(l10n.get('editCategory')),
                                     content: TextField(
                                       controller: controller,
@@ -296,28 +243,54 @@ class _SettingsPageState extends State<SettingsPage> {
                               icon: const Icon(Icons.delete, color: Colors.redAccent),
                               tooltip: l10n.get('deleteCategory'),
                               onPressed: () async {
+                                bool deleteSounds = false;
                                 final confirm = await showDialog<bool>(
                                   context: context,
-                                  builder: (context) => AlertDialog(
-                                    backgroundColor: Colors.white,
-                                    title: Text(l10n.get('deleteCategory')),
-                                    content: Text(
-                                      l10n.get('deleteCategoryConfirm').replaceAll('{category}', category),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(context, false),
-                                        child: Text(l10n.get('cancel')),
+                                  builder: (context) => StatefulBuilder(
+                                    builder: (context, setDialogState) => AlertDialog(
+                                      backgroundColor: Theme.of(context).cardColor,
+                                      title: Text(l10n.get('deleteCategory')),
+                                      content: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(l10n.get('deleteCategoryConfirm').replaceAll('{category}', category)),
+                                          const SizedBox(height: 12),
+                                          Row(
+                                            children: [
+                                              Checkbox(
+                                                value: deleteSounds,
+                                                activeColor: Colors.redAccent,
+                                                onChanged: (v) => setDialogState(() => deleteSounds = v ?? false),
+                                              ),
+                                              Expanded(
+                                                child: GestureDetector(
+                                                  onTap: () => setDialogState(() => deleteSounds = !deleteSounds),
+                                                  child: Text(
+                                                    l10n.get('deleteSoundsAlso'),
+                                                    style: const TextStyle(fontSize: 13),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.redAccent,
-                                          foregroundColor: Colors.white,
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(context, false),
+                                          child: Text(l10n.get('cancel')),
                                         ),
-                                        onPressed: () => Navigator.pop(context, true),
-                                        child: Text(l10n.get('delete')),
-                                      ),
-                                    ],
+                                        ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.redAccent,
+                                            foregroundColor: Colors.white,
+                                          ),
+                                          onPressed: () => Navigator.pop(context, true),
+                                          child: Text(l10n.get('delete')),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 );
 
@@ -325,7 +298,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                   setState(() {
                                     _localCategories.remove(category);
                                   });
-                                  widget.onDeleteCategory(category);
+                                  widget.onDeleteCategory(category, deleteSounds);
                                 }
                               },
                             ),
@@ -435,7 +408,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       border: const OutlineInputBorder(),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       filled: true,
-                      fillColor: Colors.grey[100],
+                      fillColor: Theme.of(context).cardColor,
                     ),
                     items: const [
                       DropdownMenuItem(
@@ -475,6 +448,26 @@ class _SettingsPageState extends State<SettingsPage> {
                             Text('🇫🇷', style: TextStyle(fontSize: 24)),
                             SizedBox(width: 12),
                             Text('Français'),
+                          ],
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'de',
+                        child: Row(
+                          children: [
+                            Text('🇩🇪', style: TextStyle(fontSize: 24)),
+                            SizedBox(width: 12),
+                            Text('Deutsch'),
+                          ],
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'ru',
+                        child: Row(
+                          children: [
+                            Text('🇷🇺', style: TextStyle(fontSize: 24)),
+                            SizedBox(width: 12),
+                            Text('Русский'),
                           ],
                         ),
                       ),

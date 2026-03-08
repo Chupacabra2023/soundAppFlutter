@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'sound_button.dart';
 import 'settings_page.dart';
+import 'add_soud_page.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
@@ -11,9 +12,8 @@ import 'sound_data.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app_localizations.dart';
+import 'language_picker_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:flutter/material.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,22 +51,31 @@ class MyApp extends StatefulWidget {
     _MyAppState? state = context.findAncestorStateOfType<_MyAppState>();
     state?.setLocale(newLocale);
   }
+
+  static void toggleThemeStatic(BuildContext context) {
+    context.findAncestorStateOfType<_MyAppState>()?.toggleTheme();
+  }
 }
 
 class _MyAppState extends State<MyApp> {
   Locale? _locale;
+  bool? _isFirstLaunch; // null = still loading prefs
+  ThemeMode _themeMode = ThemeMode.light;
 
   @override
   void initState() {
     super.initState();
-    _loadLocale();
+    _loadPrefs();
   }
 
-  Future<void> _loadLocale() async {
+  Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    final languageCode = prefs.getString('language_code') ?? 'en';
+    final languageCode = prefs.getString('language_code');
+    final isDark = prefs.getBool('dark_mode') ?? false;
     setState(() {
-      _locale = Locale(languageCode);
+      _isFirstLaunch = languageCode == null;
+      _locale = Locale(languageCode ?? 'en');
+      _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
     });
   }
 
@@ -75,6 +84,23 @@ class _MyAppState extends State<MyApp> {
       _locale = locale;
     });
     _saveLocale(locale);
+  }
+
+  void _onLanguageSelected(Locale locale) {
+    setLocale(locale);
+    setState(() {
+      _isFirstLaunch = false;
+    });
+  }
+
+  void toggleTheme() {
+    final newMode = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    setState(() {
+      _themeMode = newMode;
+    });
+    SharedPreferences.getInstance().then(
+      (prefs) => prefs.setBool('dark_mode', newMode == ThemeMode.dark),
+    );
   }
 
   Future<void> _saveLocale(Locale locale) async {
@@ -87,6 +113,24 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       locale: _locale,
+      themeMode: _themeMode,
+      theme: ThemeData(
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: Colors.grey[100],
+        appBarTheme: AppBarTheme(backgroundColor: Colors.blueGrey[900]),
+        cardColor: Colors.white,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueGrey),
+      ),
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF1B2428),
+        appBarTheme: AppBarTheme(backgroundColor: Colors.blueGrey[900]),
+        cardColor: const Color(0xFF263238),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blueGrey,
+          brightness: Brightness.dark,
+        ),
+      ),
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -98,8 +142,14 @@ class _MyAppState extends State<MyApp> {
         Locale('sk'),
         Locale('es'),
         Locale('fr'),
+        Locale('de'),
+        Locale('ru'),
       ],
-      home: const SoundboardPage(),
+      home: _isFirstLaunch == null
+          ? const SizedBox()
+          : _isFirstLaunch == true
+              ? LanguagePickerPage(onLanguageSelected: _onLanguageSelected)
+              : const SoundboardPage(),
     );
   }
 }
@@ -125,7 +175,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
   String _searchQuery = '';
   bool _isDeleteMode = false;
   bool _isResetting = false; // Loading state pre reset
-  String _selectedCategory = 'everything';
+  final Set<String> _selectedCategories = {'everything'};
   List<String> _categories = ['everything'];
 
   // Sound list - empty by default, defaults will be loaded in _initializeSounds()
@@ -262,6 +312,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
             'categories': List<String>.from(sound['categories'] ?? []),
             'fav': sound['fav'] ?? false,
             'color': sound['color'],
+            'startMs': sound['startMs'] ?? 0,
+            'endMs': sound['endMs'],
           };
         }));
 
@@ -279,10 +331,10 @@ class _SoundboardPageState extends State<SoundboardPage> {
   // ✅ Optimalizovaná funkcia - aktualizuje cache namiesto toho aby počítala zakaždým
   void _updateFilteredSounds() {
     _cachedFilteredSounds = sounds.where((sound) {
-      // Kategória filter
-      if (_selectedCategory != 'everything') {
+      // Kategória filter - zobraz ak je 'everything' alebo zvuk má aspoň jednu zvolenú kategóriu
+      if (!_selectedCategories.contains('everything')) {
         final categories = List<String>.from(sound['categories'] ?? []);
-        if (!categories.contains(_selectedCategory)) return false;
+        if (!categories.any((c) => _selectedCategories.contains(c))) return false;
       }
 
       // Search filter
@@ -308,19 +360,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
     _player.onPlayerComplete.listen((event) {
       if (mounted && !_isLooping) {
-        setState(() {
-          _progressNotifier.value = 0.0; // ✅ Použij ValueNotifier
-          _currentSound = null;
-        });
-
-        // If shuffle play is enabled, play next random sound after a short delay
-        if (_isShufflePlay) {
-          _shuffleTimer = Timer(const Duration(milliseconds: 500), () {
-            if (_isShufflePlay && mounted) {
-              _playRandomSound();
-            }
-          });
-        }
+        _handlePlaybackComplete();
       }
     });
   }
@@ -345,10 +385,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
       _categories.remove('everything');
       _categories.insert(0, 'everything');
 
-      // Ak aktuálne vybraná kategória už neexistuje, prepni na 'everything'
-      if (!_categories.contains(_selectedCategory)) {
-        _selectedCategory = 'everything';
-      }
+      // Odstráň zo selected kategórie ktoré už neexistujú
+      _selectedCategories.removeWhere((c) => c != 'everything' && !usedCategories.contains(c));
+      if (_selectedCategories.isEmpty) _selectedCategories.add('everything');
     });
   }
 
@@ -383,20 +422,24 @@ class _SoundboardPageState extends State<SoundboardPage> {
       await _player.setPlaybackRate(_playbackRate);
       await _player.setReleaseMode(ReleaseMode.release);
 
-      // Get application documents directory
+      // Look up trim for this sound
+      final soundData = sounds.firstWhere(
+        (s) => s['name'] == name,
+        orElse: () => <String, dynamic>{},
+      );
+      final int startMs = soundData['startMs'] ?? 0;
+      final int? endMs = soundData['endMs'] as int?;
+
       final dir = await getApplicationDocumentsDirectory();
       final filePath = '${dir.path}/$name';
 
       if (await File(filePath).exists()) {
-        // Play saved file
         await _player.play(DeviceFileSource(filePath));
         debugPrint('Playing from permanent storage: $filePath');
       } else if (name.startsWith('/')) {
-        // Play file with absolute path
         await _player.play(DeviceFileSource(name));
         debugPrint('Playing from local path: $name');
       } else {
-        // File doesn't exist
         debugPrint('File does not exist: $filePath');
         if (mounted) {
           final l10n = AppLocalizations.of(context);
@@ -410,18 +453,22 @@ class _SoundboardPageState extends State<SoundboardPage> {
       setState(() {
         _currentSound = name;
       });
-      _progressNotifier.value = 0.0; // ✅ Použij ValueNotifier mimo setState
+      _progressNotifier.value = 0.0;
+
+      if (startMs > 0) {
+        await _player.seek(Duration(milliseconds: startMs));
+      }
 
       final duration = await _player.getDuration();
       if (duration != null && duration.inMilliseconds > 0) {
         _totalDurationMs = duration.inMilliseconds;
-        _startFakeProgress(duration.inMilliseconds);
+        _startFakeProgress(duration.inMilliseconds, startMs: startMs, endMs: endMs);
       } else {
         _player.onDurationChanged.first.then((d) {
           final length = d.inMilliseconds;
           if (length > 0) {
             _totalDurationMs = length;
-            _startFakeProgress(length);
+            _startFakeProgress(length, startMs: startMs, endMs: endMs);
           }
         });
       }
@@ -436,44 +483,78 @@ class _SoundboardPageState extends State<SoundboardPage> {
     }
   }
 
-  void _startFakeProgress(int milliseconds, {double startFrom = 0.0}) {
+  // startFrom = 0.0..1.0 within trim window (nie celý súbor)
+  void _startFakeProgress(int totalMs, {double startFrom = 0.0, int startMs = 0, int? endMs}) {
     _progressTimer?.cancel();
 
-    int adjustedMilliseconds = (milliseconds / _playbackRate).toInt();
-    final remainingMs = (adjustedMilliseconds * (1.0 - startFrom)).toInt();
+    final int effectiveEndMs = (endMs ?? totalMs).clamp(0, totalMs);
+    final int clampedStartMs = startMs.clamp(0, totalMs);
+    final int trimWindowMs = effectiveEndMs - clampedStartMs;
+
+    if (trimWindowMs <= 0) {
+      _handlePlaybackComplete();
+      return;
+    }
+
+    // Progress 0.0..1.0 = od startMs po endMs (trim okno)
+    final int adjustedWindowMs = (trimWindowMs / _playbackRate).toInt();
+    final int alreadyElapsedMs = (startFrom * adjustedWindowMs).toInt();
+
     final start = DateTime.now();
 
     _progressTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
-      // Safety check - cancel if widget is disposed
       if (!mounted) {
         timer.cancel();
         return;
       }
 
-      final elapsed = DateTime.now().difference(start).inMilliseconds;
-      final p = (startFrom + (elapsed / adjustedMilliseconds)).clamp(0.0, 1.0);
+      final elapsed = DateTime.now().difference(start).inMilliseconds + alreadyElapsedMs;
+      final p = (elapsed / adjustedWindowMs).clamp(0.0, 1.0);
 
-      _progressNotifier.value = p; // ✅ Len aktualizuj notifier - ŽIADNE setState!
+      _progressNotifier.value = p;
 
       if (p >= 1.0) {
         timer.cancel();
-        if (_isLooping && _currentSound != null && mounted) {
-          _playSound(_currentSound!);
-        } else if (mounted) {
-          setState(() {
-            _progressNotifier.value = 0.0;
-            _currentSound = null;
-          });
-        }
+        _handlePlaybackComplete();
       }
     });
   }
 
+  void _handlePlaybackComplete() {
+    if (_isLooping && _currentSound != null && mounted) {
+      _playSound(_currentSound!);
+    } else {
+      _player.stop();
+      if (mounted) {
+        setState(() {
+          _progressNotifier.value = 0.0;
+          _currentSound = null;
+        });
+        if (_isShufflePlay) {
+          _shuffleTimer = Timer(const Duration(milliseconds: 500), () {
+            if (_isShufflePlay && mounted) _playRandomSound();
+          });
+        }
+      }
+    }
+  }
+
+  // position = 0.0..1.0 v rámci trim okna
   void _seekTo(double position) {
     if (_currentSound == null || _totalDurationMs == 0) return;
-    final seekMs = (position * _totalDurationMs).toInt();
+
+    final soundData = sounds.firstWhere(
+      (s) => s['name'] == _currentSound,
+      orElse: () => <String, dynamic>{},
+    );
+    final int startMs = soundData['startMs'] ?? 0;
+    final int? endMs = soundData['endMs'] as int?;
+    final int effectiveEndMs = endMs ?? _totalDurationMs;
+
+    // Mapuj position (0.0..1.0 trim okna) na skutočné ms
+    final int seekMs = (startMs + position * (effectiveEndMs - startMs)).toInt().clamp(startMs, effectiveEndMs);
     _player.seek(Duration(milliseconds: seekMs));
-    _startFakeProgress(_totalDurationMs, startFrom: position);
+    _startFakeProgress(_totalDurationMs, startFrom: position, startMs: startMs, endMs: endMs);
   }
 
 
@@ -491,7 +572,16 @@ class _SoundboardPageState extends State<SoundboardPage> {
     await _player.setPlaybackRate(speed);
 
     if (_currentSound != null && _totalDurationMs > 0) {
-      _startFakeProgress(_totalDurationMs, startFrom: currentProgress);
+      final soundData = sounds.firstWhere(
+        (s) => s['name'] == _currentSound,
+        orElse: () => <String, dynamic>{},
+      );
+      _startFakeProgress(
+        _totalDurationMs,
+        startFrom: currentProgress,
+        startMs: soundData['startMs'] ?? 0,
+        endMs: soundData['endMs'] as int?,
+      );
     }
   }
 
@@ -510,7 +600,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
   }
   // Funkcia na aktualizáciu zvuku
   void _updateSound(String oldName, String newTitle, List<String> newCategories,
-      Color newColor) {
+      Color newColor, int newStartMs, int? newEndMs) {
     setState(() {
       final soundIndex = sounds.indexWhere((s) => s['name'] == oldName);
       if (soundIndex != -1) {
@@ -518,16 +608,14 @@ class _SoundboardPageState extends State<SoundboardPage> {
         sounds[soundIndex]['categories'] = newCategories;
         sounds[soundIndex]['color'] =
         '#${newColor.toARGB32().toRadixString(16).padLeft(8, '0')}';
-
-        // Automaticky synchronizuj hviezdu (fav) s kategóriou "favorite"
         sounds[soundIndex]['fav'] = newCategories.contains('favorite');
+        sounds[soundIndex]['startMs'] = newStartMs;
+        sounds[soundIndex]['endMs'] = newEndMs;
       }
     });
     saveSoundsToStorage();
-
-    // Aktualizuj zoznam kategórií podľa skutočne používaných
     _rebuildCategoriesList();
-    _updateFilteredSounds(); // ✅ Aktualizuj cache
+    _updateFilteredSounds();
   }
 
   // Funkcia na reset zvukov
@@ -577,12 +665,19 @@ class _SoundboardPageState extends State<SoundboardPage> {
   }
 
   // Funkcia na odstránenie kategórie
-  void _deleteCategory(String category) {
+  void _deleteCategory(String category, bool deleteSounds) {
     setState(() {
-      for (var sound in sounds) {
-        final categories = List<String>.from(sound['categories'] ?? []);
-        categories.remove(category);
-        sound['categories'] = categories;
+      if (deleteSounds) {
+        sounds.removeWhere((sound) {
+          final cats = List<String>.from(sound['categories'] ?? []);
+          return cats.contains(category);
+        });
+      } else {
+        for (var sound in sounds) {
+          final categories = List<String>.from(sound['categories'] ?? []);
+          categories.remove(category);
+          sound['categories'] = categories;
+        }
       }
     });
 
@@ -704,69 +799,82 @@ class _SoundboardPageState extends State<SoundboardPage> {
         backgroundColor: Colors.blueGrey[900],
         automaticallyImplyLeading: false,
         titleSpacing: 0,
-        title: Row(
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(width: 30),
-            DropdownButton<String>(
-              value: _selectedCategory,
-              underline: const SizedBox(),
-              dropdownColor: Colors.blueGrey[800],
-              iconEnabledColor: Colors.white,
-              style: const TextStyle(color: Colors.white),
-              onChanged: (String? newValue) {
-                setState(() {
-                  _selectedCategory = newValue!;
-                });
-                _updateFilteredSounds();
-              },
-              items: _categories.map<DropdownMenuItem<String>>((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: Icon(
+                _isLooping ? Icons.loop : Icons.loop_outlined,
+                color: _isLooping ? Colors.lightBlueAccent : Colors.white,
+              ),
+              onPressed: _toggleLoop,
+              tooltip: l10n.get('loop'),
+            ),
+            PopupMenuButton<double>(
+              icon: const Icon(Icons.speed, color: Colors.white),
+              tooltip: l10n.get('playbackSpeed'),
+              color: Colors.blueGrey[800],
+              onSelected: _changeSpeed,
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 0.5,
+                  child: Text(l10n.get('speed05'), style: const TextStyle(color: Colors.white)),
+                ),
+                PopupMenuItem(
+                  value: 1.0,
+                  child: Text(l10n.get('speed10'), style: const TextStyle(color: Colors.white)),
+                ),
+                PopupMenuItem(
+                  value: 2.0,
+                  child: Text(l10n.get('speed20'), style: const TextStyle(color: Colors.white)),
+                ),
+              ],
+            ),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: Icon(
+                _isShufflePlay ? Icons.shuffle : Icons.shuffle_outlined,
+                color: _isShufflePlay ? Colors.greenAccent : Colors.white,
+              ),
+              onPressed: _toggleShufflePlay,
+              tooltip: l10n.get('shufflePlay'),
+            ),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.add, color: Colors.white),
+              tooltip: l10n.get('addSound'),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AddSoundPage(
+                      categories: _categories,
+                      onSoundAdded: (filePath, title, categories, color) async {
+                        final savedFileName = await saveFileToPermanentStorage(filePath);
+                        setState(() {
+                          sounds.add({
+                            'name': savedFileName,
+                            'title': title.isNotEmpty ? title : savedFileName,
+                            'categories': categories,
+                            'fav': false,
+                            'color': '#${color.toARGB32().toRadixString(16).padLeft(8, '0')}',
+                          });
+                        });
+                        await saveSoundsToStorage();
+                        _rebuildCategoriesList();
+                        _updateFilteredSounds();
+                      },
+                    ),
+                  ),
                 );
-              }).toList(),
+              },
             ),
           ],
         ),
+        leadingWidth: 180,
+        title: const SizedBox.shrink(),
         actions: [
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            icon: Icon(
-              _isLooping ? Icons.loop : Icons.loop_outlined,
-              color: _isLooping ? Colors.lightBlueAccent : Colors.white,
-            ),
-            onPressed: _toggleLoop,
-            tooltip: l10n.get('loop'),
-          ),
-          PopupMenuButton<double>(
-            icon: const Icon(Icons.speed, color: Colors.white),
-            tooltip: l10n.get('playbackSpeed'),
-            color: Colors.blueGrey[800],
-            onSelected: _changeSpeed,
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 0.5,
-                child: Text(l10n.get('speed05'), style: const TextStyle(color: Colors.white)),
-              ),
-              PopupMenuItem(
-                value: 1.0,
-                child: Text(l10n.get('speed10'), style: const TextStyle(color: Colors.white)),
-              ),
-              PopupMenuItem(
-                value: 2.0,
-                child: Text(l10n.get('speed20'), style: const TextStyle(color: Colors.white)),
-              ),
-            ],
-          ),
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            icon: Icon(
-              _isShufflePlay ? Icons.shuffle : Icons.shuffle_outlined,
-              color: _isShufflePlay ? Colors.greenAccent : Colors.white,
-            ),
-            onPressed: _toggleShufflePlay,
-            tooltip: l10n.get('shufflePlay'),
-          ),
           IconButton(
             visualDensity: VisualDensity.compact,
             icon: Icon(
@@ -780,7 +888,16 @@ class _SoundboardPageState extends State<SoundboardPage> {
             },
             tooltip: _isDeleteMode ? l10n.get('cancelDeleteMode') : l10n.get('deleteMode'),
           ),
-          // ⚙️ Settings button
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: Icon(
+              Theme.of(context).brightness == Brightness.dark
+                  ? Icons.light_mode
+                  : Icons.dark_mode,
+              color: Colors.white,
+            ),
+            onPressed: () => MyApp.toggleThemeStatic(context),
+          ),
           IconButton(
             visualDensity: VisualDensity.compact,
             icon: const Icon(Icons.settings, color: Colors.white),
@@ -792,31 +909,14 @@ class _SoundboardPageState extends State<SoundboardPage> {
                   builder: (context) => SettingsPage(
                     categories: _categories,
                     onResetSounds: _resetSounds,
-                    onDeleteCategory: _deleteCategory,
+                    onDeleteCategory: (cat, del) => _deleteCategory(cat, del),
                     onRenameCategory: _renameCategory,
-                    onAddSound: (filePath, title, categories, color) async {
-                      final savedFileName =
-                          await saveFileToPermanentStorage(filePath);
-                      setState(() {
-                        sounds.add({
-                          'name': savedFileName,
-                          'title': title.isNotEmpty ? title : savedFileName,
-                          'categories': categories,
-                          'fav': false,
-                          'color':
-                              '#${color.toARGB32().toRadixString(16).padLeft(8, '0')}',
-                        });
-                      });
-                      await saveSoundsToStorage();
-                      _rebuildCategoriesList();
-                      _updateFilteredSounds();
-                    },
                   ),
                 ),
               );
             },
           ),
-          const SizedBox(width: 3),
+          const SizedBox(width: 4),
         ],
       ),
 
@@ -848,6 +948,56 @@ class _SoundboardPageState extends State<SoundboardPage> {
                   },
                 ),
               ),
+
+              // 🏷️ Category filter chips
+              SizedBox(
+                height: 40,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: _categories.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 6),
+                  itemBuilder: (context, index) {
+                    final category = _categories[index];
+                    final isSelected = _selectedCategories.contains(category);
+                    final isDark = Theme.of(context).brightness == Brightness.dark;
+                    return FilterChip(
+                      label: Text(
+                        category,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isSelected ? Colors.white : (isDark ? Colors.white : Colors.black87),
+                        ),
+                      ),
+                      selected: isSelected,
+                      selectedColor: Colors.blueGrey[600],
+                      backgroundColor: isDark ? Colors.blueGrey[700] : Colors.grey[200],
+                      showCheckmark: false,
+                      onSelected: (_) {
+                        setState(() {
+                          if (category == 'everything') {
+                            _selectedCategories.clear();
+                            _selectedCategories.add('everything');
+                          } else {
+                            _selectedCategories.remove('everything');
+                            if (_selectedCategories.contains(category)) {
+                              _selectedCategories.remove(category);
+                              if (_selectedCategories.isEmpty) {
+                                _selectedCategories.add('everything');
+                              }
+                            } else {
+                              _selectedCategories.add(category);
+                            }
+                          }
+                        });
+                        _updateFilteredSounds();
+                      },
+                    );
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 8),
 
               // ⏳ Progress bar
               Padding(
@@ -932,39 +1082,6 @@ class _SoundboardPageState extends State<SoundboardPage> {
               ),
 
               // Filter info
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    Text(
-                      '${l10n.get('filter')} $_selectedCategory',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                      ),
-                    ),
-                    if (_searchQuery.isNotEmpty) ...[
-                      const SizedBox(width: 16),
-                      Text(
-                        '${l10n.get('search')} "$_searchQuery"',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                    const Spacer(),
-                    Text(
-                      '${_cachedFilteredSounds.length} ${l10n.get('soundsCount')}',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
               const SizedBox(height: 8),
 
               // 🟩 Grid tlačidiel
@@ -1012,32 +1129,29 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         displayName: sound['title'],
                         buttonColor: _isDeleteMode
                             ? Colors.redAccent
-                            : _parseColor(
-                          sound['color'] ?? '#42A5F5',
-                        ),
+                            : _parseColor(sound['color'] ?? '#42A5F5'),
+                        savedColor: _parseColor(sound['color'] ?? '#42A5F5'),
                         categories: List<String>.from(
                             sound['categories'] ?? []),
                         isFavorite: sound['fav'] ?? false,
                         allCategories: _categories,
-                        isPlaying: _currentSound == sound['name'], // Skontroluj či sa tento zvuk prehráva
+                        isPlaying: _currentSound == sound['name'],
+                        startMs: sound['startMs'] ?? 0,
+                        endMs: sound['endMs'] as int?,
                         onPressed: () async {
                           if (_isDeleteMode) {
                             await deleteSound(sound['name']);
                             setState(() {});
                           } else {
-                            // Ak sa tento zvuk už prehráva, zastav ho
                             if (_currentSound == sound['name']) {
                               _stopSound();
                             } else {
-                              // Inak prehraj zvuk
                               _playSound(sound['name']);
                             }
                           }
                         },
-                        onUpdate:
-                            (newTitle, newCategories, newColor) {
-                          _updateSound(sound['name'], newTitle,
-                              newCategories, newColor);
+                        onUpdate: (newTitle, newCategories, newColor, newStartMs, newEndMs) {
+                          _updateSound(sound['name'], newTitle, newCategories, newColor, newStartMs, newEndMs);
                         },
                         onToggleFavorite: () =>
                             _toggleFavorite(sound['name']),

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 import 'sound_data.dart';
 import 'app_localizations.dart';
 
@@ -18,14 +21,18 @@ class SoundButton extends StatefulWidget {
   final bool isFavorite;
   final List<String> allCategories;
   final VoidCallback onPressed;
-  final Function(String, List<String>, Color) onUpdate;
+  final Function(String, List<String>, Color, int, int?) onUpdate;
   final VoidCallback onToggleFavorite;
-  final Color buttonColor;
-  final bool isPlaying; // Nový parameter - či sa tento zvuk práve prehráva
+  final Color buttonColor;   // display farba (môže byť červená v delete móde)
+  final Color savedColor;    // skutočná uložená farba (vždy správna)
+  final bool isPlaying;
+  final int startMs;
+  final int? endMs;
 
   const SoundButton({
     super.key,
     required this.buttonColor,
+    required this.savedColor,
     required this.soundName,
     required this.displayName,
     required this.categories,
@@ -34,7 +41,9 @@ class SoundButton extends StatefulWidget {
     required this.onPressed,
     required this.onUpdate,
     required this.onToggleFavorite,
-    this.isPlaying = false, // Default: nie je playing
+    this.isPlaying = false,
+    this.startMs = 0,
+    this.endMs,
   });
 
   @override
@@ -42,28 +51,53 @@ class SoundButton extends StatefulWidget {
 }
 
 class _SoundButtonState extends State<SoundButton> {
-  // ⚡ Optimalizácia - len displayName a color v state, ostatné lazy load
   late String _currentDisplayName;
-  late Color _selectedColor;
 
   @override
   void initState() {
     super.initState();
     _currentDisplayName = widget.displayName;
-    _selectedColor = widget.buttonColor;
+  }
+
+  Future<int?> _fetchDurationMs() async {
+    final probePlayer = AudioPlayer();
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final filePath = '${dir.path}/${widget.soundName}';
+      if (!await File(filePath).exists()) return null;
+      await probePlayer.setSource(DeviceFileSource(filePath));
+      final duration = await probePlayer.getDuration();
+      return duration?.inMilliseconds;
+    } catch (e) {
+      return null;
+    } finally {
+      await probePlayer.dispose();
+    }
+  }
+
+  String _formatMs(int ms) {
+    final totalSeconds = ms ~/ 1000;
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    final tenths = (ms % 1000) ~/ 100;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}.$tenths';
   }
 
   void _openSettings() {
     final l10n = AppLocalizations.of(context);
     final nameController = TextEditingController(text: _currentDisplayName);
-    // ⚡ Vytvor kategórie až TU, nie v initState!
     List<String> tempSelectedCategories = List.from(widget.categories);
     List<String> tempAvailableCategories = List.from(widget.allCategories);
-    // Lokálne kópie pre modal - zmeny sa prejavia až po Save
     String tempDisplayName = _currentDisplayName;
-    Color tempSelectedColor = _selectedColor;
+    Color tempSelectedColor = widget.savedColor;
 
-    // Lazy-loaded reklama - načíta sa až teraz
+    // Trim state
+    int tempStartMs = widget.startMs;
+    int? tempEndMs = widget.endMs;
+    int dialogTotalDurationMs = 0;
+    bool isDurationLoading = true;
+    StateSetter? dialogSetState;
+
     BannerAd? dialogBannerAd;
     bool isBannerLoaded = false;
 
@@ -80,12 +114,31 @@ class _SoundButtonState extends State<SoundButton> {
             constraints: BoxConstraints(
               maxHeight: MediaQuery.of(context).size.height * 0.7,
             ),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             ),
             child: StatefulBuilder(
               builder: (context, setModalState) {
+                dialogSetState = setModalState;
+
+                // Fetch duration once on first build
+                if (isDurationLoading && dialogTotalDurationMs == 0) {
+                  _fetchDurationMs().then((durationMs) {
+                    if (durationMs != null && durationMs > 0 && dialogSetState != null) {
+                      dialogSetState!(() {
+                        dialogTotalDurationMs = durationMs;
+                        isDurationLoading = false;
+                        tempEndMs ??= durationMs;
+                      });
+                    } else {
+                      dialogSetState!(() {
+                        isDurationLoading = false;
+                      });
+                    }
+                  });
+                }
+
                 // Načítaj reklamu len raz pri prvom builde
                 if (dialogBannerAd == null) {
                   dialogBannerAd = BannerAd(
@@ -140,14 +193,15 @@ class _SoundButtonState extends State<SoundButton> {
                                 .map((category) {
                               final isSelected =
                               tempSelectedCategories.contains(category);
+                              final isDark = Theme.of(context).brightness == Brightness.dark;
                               return FilterChip(
                                 label: Text(category),
                                 selected: isSelected,
                                 selectedColor: Colors.blueGrey[700],
                                 labelStyle: TextStyle(
-                                  color: isSelected ? Colors.white : Colors.black87,
+                                  color: isSelected ? Colors.white : (isDark ? Colors.white : Colors.black87),
                                 ),
-                                backgroundColor: Colors.grey[200],
+                                backgroundColor: isDark ? Colors.blueGrey[700] : Colors.grey[200],
                                 onSelected: (selected) {
                                   setModalState(() {
                                     if (selected) {
@@ -235,22 +289,81 @@ class _SoundButtonState extends State<SoundButton> {
                                 });
                               },
                               child: Container(
-                                width: 36,
-                                height: 36,
+                                width: 42,
+                                height: 42,
                                 decoration: BoxDecoration(
-                                  color: color,
+                                  color: isSelected ? Colors.white : Colors.transparent,
                                   shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? Colors.blueGrey[900]!
-                                        : Colors.transparent,
-                                    width: 2,
+                                ),
+                                padding: const EdgeInsets.all(3),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    shape: BoxShape.circle,
                                   ),
                                 ),
                               ),
                             );
                           }).toList(),
                         ),
+
+                        const SizedBox(height: 20),
+                        Text(
+                          l10n.get('trimSound'),
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        if (isDurationLoading)
+                          Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              child: Text(
+                                l10n.get('trimLoading'),
+                                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                              ),
+                            ),
+                          )
+                        else if (dialogTotalDurationMs > 0)
+                          Column(
+                            children: [
+                              RangeSlider(
+                                values: RangeValues(
+                                  tempStartMs.toDouble().clamp(0, dialogTotalDurationMs.toDouble()),
+                                  (tempEndMs ?? dialogTotalDurationMs).toDouble().clamp(0, dialogTotalDurationMs.toDouble()),
+                                ),
+                                min: 0,
+                                max: dialogTotalDurationMs.toDouble(),
+                                activeColor: Colors.blueGrey[700],
+                                inactiveColor: Colors.grey[300],
+                                onChanged: (RangeValues values) {
+                                  setModalState(() {
+                                    tempStartMs = values.start.toInt();
+                                    tempEndMs = values.end.toInt();
+                                  });
+                                },
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(_formatMs(tempStartMs), style: const TextStyle(fontSize: 12)),
+                                    Text(_formatMs(dialogTotalDurationMs), style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                                    Text(_formatMs(tempEndMs ?? dialogTotalDurationMs), style: const TextStyle(fontSize: 12)),
+                                  ],
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  setModalState(() {
+                                    tempStartMs = 0;
+                                    tempEndMs = dialogTotalDurationMs;
+                                  });
+                                },
+                                child: Text(l10n.get('trimReset')),
+                              ),
+                            ],
+                          ),
 
                         const SizedBox(height: 16),
                         ElevatedButton(
@@ -260,17 +373,25 @@ class _SoundButtonState extends State<SoundButton> {
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                           onPressed: () {
-                            // ✅ Teraz nastav skutočné state premenné (len displayName a color)
+                            final finalName = tempDisplayName.trim().isEmpty
+                                ? _currentDisplayName
+                                : tempDisplayName.trim();
+
                             setState(() {
-                              _currentDisplayName = tempDisplayName;
-                              _selectedColor = tempSelectedColor;
+                              _currentDisplayName = finalName;
+                              nameController.text = finalName;
                             });
 
-                            // Pošli update do parent widgetu
+                            final int? finalEndMs = (dialogTotalDurationMs > 0 && tempEndMs == dialogTotalDurationMs)
+                                ? null
+                                : tempEndMs;
+
                             widget.onUpdate(
-                              tempDisplayName,
+                              finalName,
                               tempSelectedCategories,
                               tempSelectedColor,
+                              tempStartMs,
+                              finalEndMs,
                             );
                             Navigator.pop(context);
                           },

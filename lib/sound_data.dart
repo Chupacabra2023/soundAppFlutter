@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 // Data version - zvýš toto číslo keď zmeníš defaultné zvuky
 // Aplikácia automaticky resetuje zvuky pri zmene verzie
-const int DATA_VERSION = 12;
+const int DATA_VERSION = 13;
 
 // 🎨 Globálna paleta farieb pre tlačidlá (použitá v SoundButton a AddSoundPage)
 const List<Color> kColorPalette = [
@@ -466,5 +466,7 @@ List<Map<String, dynamic>>.generate(assetSoundFiles.length, (index) {
     'categories': soundCategories[fileName] ?? <String>[],
     'fav': false,
     'color': _colorFromLightness(index, assetSoundFiles.length),
+    'startMs': 0,
+    'endMs': null,
   };
 });

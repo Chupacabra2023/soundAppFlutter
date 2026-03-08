@@ -2,10 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:record/record.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'dart:io';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'sound_data.dart';
 import 'app_localizations.dart';
+import 'main.dart';
+
+class _FileEntry {
+  final String path;
+  final TextEditingController nameController;
+
+  _FileEntry({required this.path, required String name})
+      : nameController = TextEditingController(text: name);
+
+  void dispose() => nameController.dispose();
+}
 
 class AddSoundPage extends StatefulWidget {
   final List<String> categories;
@@ -24,18 +37,20 @@ class AddSoundPage extends StatefulWidget {
 class _AddSoundPageState extends State<AddSoundPage> {
   final _record = AudioRecorder();
   final _player = AudioPlayer();
-  String? _filePath;
   bool _isRecording = false;
-  final TextEditingController _nameController = TextEditingController();
-  final List<String> _selectedCategories = [];
+  String? _recordedPath;
 
+  final List<_FileEntry> _selectedFiles = [];
+  final List<String> _selectedCategories = [];
   Color _selectedColor = const Color(0xFF7BAFD4);
+
+  // Trim state (only for single file / recording)
+  int _trimStartMs = 0;
+  int _trimEndMs = 0;
+  int _fileDurationMs = 0;
 
   BannerAd? _bannerAd;
   bool _isBannerAdLoaded = false;
-
-  // ✅ FocusNode pre sledovanie focusu na TextField
-  final FocusNode _nameFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -50,15 +65,9 @@ class _AddSoundPageState extends State<AddSoundPage> {
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (ad) {
-          if (mounted) {
-            setState(() {
-              _isBannerAdLoaded = true;
-            });
-          }
+          if (mounted) setState(() => _isBannerAdLoaded = true);
         },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-        },
+        onAdFailedToLoad: (ad, error) => ad.dispose(),
       ),
     );
     _bannerAd?.load();
@@ -69,9 +78,44 @@ class _AddSoundPageState extends State<AddSoundPage> {
     _bannerAd?.dispose();
     _record.dispose();
     _player.dispose();
-    _nameController.dispose();
-    _nameFocusNode.dispose(); // ✅ Dispose FocusNode
+    for (final f in _selectedFiles) {
+      f.dispose();
+    }
     super.dispose();
+  }
+
+  Future<void> _fetchDuration(String filePath) async {
+    final probePlayer = AudioPlayer();
+    try {
+      await probePlayer.setSource(DeviceFileSource(filePath));
+      final duration = await probePlayer.getDuration();
+      final ms = duration?.inMilliseconds ?? 0;
+      if (ms > 0) {
+        setState(() {
+          _fileDurationMs = ms;
+          _trimStartMs = 0;
+          _trimEndMs = ms;
+        });
+      }
+    } catch (_) {
+    } finally {
+      await probePlayer.dispose();
+    }
+  }
+
+  String _formatMs(int ms) {
+    final totalSeconds = ms ~/ 1000;
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    final tenths = (ms % 1000) ~/ 100;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}.$tenths';
+  }
+
+  String _cleanName(String fileName) {
+    final withoutExt = fileName.contains('.')
+        ? fileName.substring(0, fileName.lastIndexOf('.'))
+        : fileName;
+    return withoutExt.replaceAll('_', ' ').replaceAll('-', ' ');
   }
 
   Future<void> _startRecording() async {
@@ -80,8 +124,8 @@ class _AddSoundPageState extends State<AddSoundPage> {
         final path = '${Directory.systemTemp.path}/temp_sound_${DateTime.now().millisecondsSinceEpoch}.m4a';
         await _record.start(const RecordConfig(), path: path);
         setState(() {
-          _filePath = path;
           _isRecording = true;
+          _recordedPath = path;
         });
       } else {
         if (mounted) {
@@ -104,40 +148,60 @@ class _AddSoundPageState extends State<AddSoundPage> {
       await _record.stop();
       setState(() {
         _isRecording = false;
+        // Replace files list with just the recording
+        for (final f in _selectedFiles) f.dispose();
+        _selectedFiles.clear();
+        _selectedFiles.add(_FileEntry(
+          path: _recordedPath!,
+          name: 'recording_${DateTime.now().millisecondsSinceEpoch}',
+        ));
+        _fileDurationMs = 0;
       });
+      await _fetchDuration(_recordedPath!);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('❌ Error stopping recording: $e')),
         );
-        setState(() {
-          _isRecording = false;
-        });
+        setState(() => _isRecording = false);
       }
     }
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.audio);
-    if (result != null) {
-      final file = result.files.single;
-      final nameWithoutExt = file.name.contains('.')
-          ? file.name.substring(0, file.name.lastIndexOf('.'))
-          : file.name;
-      final cleanedName = nameWithoutExt.replaceAll('_', ' ').replaceAll('-', ' ');
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.audio,
+      allowMultiple: true,
+    );
+    if (result != null && result.files.isNotEmpty) {
       setState(() {
-        _filePath = file.path;
-        if (_nameController.text.trim().isEmpty) {
-          _nameController.text = cleanedName;
+        for (final f in _selectedFiles) f.dispose();
+        _selectedFiles.clear();
+        _fileDurationMs = 0;
+        _trimStartMs = 0;
+        _trimEndMs = 0;
+
+        for (final file in result.files) {
+          if (file.path != null) {
+            _selectedFiles.add(_FileEntry(
+              path: file.path!,
+              name: _cleanName(file.name),
+            ));
+          }
         }
       });
+
+      // Trim only for single file
+      if (_selectedFiles.length == 1) {
+        await _fetchDuration(_selectedFiles.first.path);
+      }
     }
   }
 
   Future<void> _playSound() async {
-    if (_filePath != null) {
+    if (_selectedFiles.length == 1) {
       try {
-        await _player.play(DeviceFileSource(_filePath!));
+        await _player.play(DeviceFileSource(_selectedFiles.first.path));
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -179,9 +243,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
               child: Text(l10n.get('cancel'), style: const TextStyle(color: Colors.white70)),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueGrey[700],
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey[700]),
               onPressed: () {
                 final value = newCatController.text.trim();
                 if (value.isNotEmpty) Navigator.pop(context, value);
@@ -203,46 +265,69 @@ class _AddSoundPageState extends State<AddSoundPage> {
     }
   }
 
-  void _saveSound() async {
-    if (_filePath == null || _nameController.text.trim().isEmpty) {
+  Future<void> _saveSound() async {
+    if (_selectedFiles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ Please fill all fields')),
+        const SnackBar(content: Text('❌ No files selected')),
       );
       return;
     }
 
-    try {
-      final extension = _filePath!.split('.').last;
-      final cleanName = _nameController.text.trim()
-          .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
-          .replaceAll(' ', '_');
-
-      if (cleanName.isEmpty) {
+    for (final entry in _selectedFiles) {
+      final name = entry.nameController.text.trim();
+      if (name.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('❌ Invalid file name')),
+          const SnackBar(content: Text('❌ All files need a name')),
         );
         return;
       }
+    }
 
-      final finalPath = '${Directory.systemTemp.path}/$cleanName.$extension';
+    try {
+      final isSingle = _selectedFiles.length == 1;
+      final hasTrim = isSingle && _fileDurationMs > 0 &&
+          (_trimStartMs > 0 || _trimEndMs < _fileDurationMs);
 
-      final targetFile = File(finalPath);
-      if (await targetFile.exists()) {
-        await targetFile.delete();
+      for (final entry in _selectedFiles) {
+        final extension = entry.path.split('.').last;
+        final cleanName = entry.nameController.text.trim()
+            .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
+            .replaceAll(' ', '_');
+
+        if (cleanName.isEmpty) continue;
+
+        final finalPath = '${Directory.systemTemp.path}/$cleanName.$extension';
+        final targetFile = File(finalPath);
+        if (await targetFile.exists()) await targetFile.delete();
+
+        if (hasTrim) {
+          final startSec = _trimStartMs / 1000.0;
+          final endSec = _trimEndMs / 1000.0;
+          final session = await FFmpegKit.execute(
+            '-i "${entry.path}" -ss $startSec -to $endSec -c:a libmp3lame -q:a 2 "$finalPath" -y',
+          );
+          final returnCode = await session.getReturnCode();
+          if (!ReturnCode.isSuccess(returnCode)) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('❌ Error trimming audio')),
+              );
+            }
+            return;
+          }
+        } else {
+          await File(entry.path).copy(finalPath);
+        }
+
+        widget.onSoundAdded(
+          finalPath,
+          cleanName,
+          List.from(_selectedCategories),
+          _selectedColor,
+        );
       }
 
-      await File(_filePath!).rename(finalPath);
-
-      widget.onSoundAdded(
-        finalPath,
-        cleanName,
-        List.from(_selectedCategories),
-        _selectedColor,
-      );
-
-      if (mounted) {
-        Navigator.pop(context);
-      }
+      if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -255,9 +340,11 @@ class _AddSoundPageState extends State<AddSoundPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDark ? Colors.white70 : Colors.blueGrey[800];
+    final isSingle = _selectedFiles.length == 1;
 
     return Scaffold(
-      // ⚡ Zastaví rebuildy pri klavesnici!
       resizeToAvoidBottomInset: false,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -267,10 +354,18 @@ class _AddSoundPageState extends State<AddSoundPage> {
           style: const TextStyle(color: Colors.white),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: Icon(
+              isDark ? Icons.light_mode : Icons.dark_mode,
+              color: Colors.white,
+            ),
+            onPressed: () => MyApp.toggleThemeStatic(context),
+          ),
+        ],
       ),
       body: Column(
         children: [
-          // Scrollable content
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
@@ -296,39 +391,105 @@ class _AddSoundPageState extends State<AddSoundPage> {
                       ),
                       const SizedBox(width: 8),
                       IconButton(
-                        onPressed: _playSound,
+                        onPressed: isSingle ? _playSound : null,
                         icon: const Icon(Icons.play_arrow),
-                        color: Colors.blueGrey[800],
+                        color: isSingle ? iconColor : Colors.grey[400],
                         tooltip: l10n.get('play'),
                       ),
                       const SizedBox(width: 8),
                       IconButton(
                         onPressed: _pickFile,
                         icon: const Icon(Icons.upload_file),
-                        color: Colors.blueGrey[800],
+                        color: iconColor,
                         tooltip: l10n.get('pickFile'),
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
-                  // 📝 Name input
-                  TextField(
-                    controller: _nameController,
-                    focusNode: _nameFocusNode, // ✅ Pridaj FocusNode
-                    maxLength: 30,
-                    decoration: InputDecoration(
-                      labelText: l10n.get('soundName'),
-                      labelStyle: TextStyle(color: Colors.grey[700]),
-                      border: const OutlineInputBorder(),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.blueGrey[700]!),
+                  // ✂️ Trim slider — len pre 1 súbor
+                  if (isSingle && _fileDurationMs > 0) ...[
+                    Text(
+                      l10n.get('trimSound'),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    RangeSlider(
+                      values: RangeValues(
+                        _trimStartMs.toDouble().clamp(0, _fileDurationMs.toDouble()),
+                        _trimEndMs.toDouble().clamp(0, _fileDurationMs.toDouble()),
+                      ),
+                      min: 0,
+                      max: _fileDurationMs.toDouble(),
+                      activeColor: Colors.blueGrey[800],
+                      inactiveColor: Colors.grey[300],
+                      onChanged: (RangeValues values) {
+                        setState(() {
+                          _trimStartMs = values.start.toInt();
+                          _trimEndMs = values.end.toInt();
+                        });
+                      },
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(_formatMs(_trimStartMs), style: const TextStyle(fontSize: 12)),
+                          Text(_formatMs(_fileDurationMs), style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                          Text(_formatMs(_trimEndMs), style: const TextStyle(fontSize: 12)),
+                        ],
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                  ],
 
-                  const SizedBox(height: 16),
+                  // 📝 File name fields
+                  if (_selectedFiles.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    ..._selectedFiles.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final file = entry.value;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: file.nameController,
+                                maxLength: 30,
+                                decoration: InputDecoration(
+                                  labelText: _selectedFiles.length == 1
+                                      ? l10n.get('soundName')
+                                      : '${l10n.get('soundName')} ${index + 1}',
+                                  border: const OutlineInputBorder(),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderSide: BorderSide(color: Colors.blueGrey[700]!),
+                                  ),
+                                  counterText: '',
+                                ),
+                              ),
+                            ),
+                            if (_selectedFiles.length > 1) ...[
+                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: const Icon(Icons.close, color: Colors.redAccent),
+                                onPressed: () {
+                                  setState(() {
+                                    _selectedFiles[index].dispose();
+                                    _selectedFiles.removeAt(index);
+                                  });
+                                },
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+
+                  const SizedBox(height: 8),
 
                   // 📂 Categories
                   Row(
@@ -341,7 +502,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
                       IconButton(
                         onPressed: _addNewCategory,
                         icon: const Icon(Icons.add),
-                        color: Colors.blueGrey[800],
+                        color: iconColor,
                         tooltip: l10n.get('addCategory'),
                       ),
                     ],
@@ -357,11 +518,11 @@ class _AddSoundPageState extends State<AddSoundPage> {
                       return FilterChip(
                         label: Text(category),
                         labelStyle: TextStyle(
-                          color: isSelected ? Colors.white : Colors.black87,
+                          color: isSelected ? Colors.white : (isDark ? Colors.white : Colors.black87),
                         ),
                         selected: isSelected,
-                        selectedColor: Colors.blueGrey[700],
-                        backgroundColor: Colors.grey[200],
+                        selectedColor: Colors.blueGrey[600],
+                        backgroundColor: isDark ? Colors.blueGrey[700] : Colors.grey[200],
                         onSelected: (bool selected) {
                           setState(() {
                             if (selected) {
@@ -387,25 +548,21 @@ class _AddSoundPageState extends State<AddSoundPage> {
                     spacing: 8,
                     runSpacing: 8,
                     children: kColorPalette.map((color) {
-                      final isSelected =
-                          _selectedColor.toARGB32() == color.toARGB32();
+                      final isSelected = _selectedColor.toARGB32() == color.toARGB32();
                       return GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _selectedColor = color;
-                          });
-                        },
+                        onTap: () => setState(() => _selectedColor = color),
                         child: Container(
-                          width: 36,
-                          height: 36,
+                          width: 42,
+                          height: 42,
                           decoration: BoxDecoration(
-                            color: color,
+                            color: isSelected ? Colors.white : Colors.transparent,
                             shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isSelected
-                                  ? Colors.blueGrey[900]!
-                                  : Colors.transparent,
-                              width: 2,
+                          ),
+                          padding: const EdgeInsets.all(3),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
                             ),
                           ),
                         ),
@@ -422,16 +579,19 @@ class _AddSoundPageState extends State<AddSoundPage> {
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    onPressed: _saveSound,
+                    onPressed: _selectedFiles.isNotEmpty ? _saveSound : null,
                     icon: const Icon(Icons.save),
-                    label: Text(l10n.get('saveSound')),
+                    label: Text(
+                      _selectedFiles.length > 1
+                          ? '${l10n.get('saveSound')} (${_selectedFiles.length})'
+                          : l10n.get('saveSound'),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
 
-          // Banner Ad - fixne na spodku
           if (_isBannerAdLoaded && _bannerAd != null)
             Container(
               alignment: Alignment.center,
