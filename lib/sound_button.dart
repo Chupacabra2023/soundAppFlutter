@@ -21,13 +21,14 @@ class SoundButton extends StatefulWidget {
   final bool isFavorite;
   final List<String> allCategories;
   final VoidCallback onPressed;
-  final Function(String, List<String>, Color, int, int?) onUpdate;
+  final Function(String, List<String>, Color, int, int?, double) onUpdate;
   final VoidCallback onToggleFavorite;
   final Color buttonColor;   // display farba (môže byť červená v delete móde)
   final Color savedColor;    // skutočná uložená farba (vždy správna)
   final bool isPlaying;
   final int startMs;
   final int? endMs;
+  final double volume;
 
   const SoundButton({
     super.key,
@@ -44,6 +45,7 @@ class SoundButton extends StatefulWidget {
     this.isPlaying = false,
     this.startMs = 0,
     this.endMs,
+    this.volume = 1.0,
   });
 
   @override
@@ -90,6 +92,9 @@ class _SoundButtonState extends State<SoundButton> {
     List<String> tempAvailableCategories = List.from(widget.allCategories);
     String tempDisplayName = _currentDisplayName;
     Color tempSelectedColor = widget.savedColor;
+
+    // Volume state
+    double tempVolume = widget.volume;
 
     // Trim state
     int tempStartMs = widget.startMs;
@@ -365,6 +370,25 @@ class _SoundButtonState extends State<SoundButton> {
                             ],
                           ),
 
+                        const SizedBox(height: 20),
+                        Text(
+                          '🔊 ${l10n.get('volume')}: ${(tempVolume * 100).round()}%',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        Slider(
+                          value: tempVolume,
+                          min: 0.0,
+                          max: 1.0,
+                          divisions: 20,
+                          activeColor: Colors.blueGrey[700],
+                          inactiveColor: Colors.grey[300],
+                          onChanged: (value) {
+                            setModalState(() {
+                              tempVolume = value;
+                            });
+                          },
+                        ),
+
                         const SizedBox(height: 16),
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
@@ -392,6 +416,7 @@ class _SoundButtonState extends State<SoundButton> {
                               tempSelectedColor,
                               tempStartMs,
                               finalEndMs,
+                              tempVolume,
                             );
                             Navigator.pop(context);
                           },

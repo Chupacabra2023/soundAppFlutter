@@ -22,7 +22,9 @@
       "Bash(xargs -r -n 1 git update-ref -d)",
       "Bash(git reflog:*)",
       "Bash(git gc:*)",
-      "Bash(du:*)"
+      "Bash(du:*)",
+      "Bash(cd \"C:\\\\Users\\\\marma\\\\StudioProjects\\\\sound_buttons_fluttert\" && flutter pub versions ffmpeg_kit_flutter_audio 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\marma\\\\StudioProjects\\\\sound_buttons_fluttert\" && dart pub publish --dry-run 2>&1 | head -5; curl -s \"https://pub.dev/api/packages/ffmpeg_kit_flutter_audio\" 2>&1 | python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(v['version']\\) for v in d['versions']]\" 2>&1 || echo \"curl not available\")"
     ]
   }
 }

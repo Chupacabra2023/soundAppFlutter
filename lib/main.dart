@@ -329,6 +329,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
             'color': sound['color'],
             'startMs': sound['startMs'] ?? 0,
             'endMs': sound['endMs'],
+            'volume': (sound['volume'] as num?)?.toDouble() ?? 1.0,
           };
         }));
 
@@ -446,6 +447,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
       final String name = soundData['name'] as String;
       final int startMs = soundData['startMs'] ?? 0;
       final int? endMs = soundData['endMs'] as int?;
+      final double volume = (soundData['volume'] as num?)?.toDouble() ?? 1.0;
+      await _player.setVolume(volume);
 
       final dir = await getApplicationDocumentsDirectory();
       final filePath = '${dir.path}/$name';
@@ -617,7 +620,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
   }
   // Funkcia na aktualizáciu zvuku
   void _updateSound(String soundId, String newTitle, List<String> newCategories,
-      Color newColor, int newStartMs, int? newEndMs) {
+      Color newColor, int newStartMs, int? newEndMs, double newVolume) {
     setState(() {
       final soundIndex = sounds.indexWhere((s) => s['id'] == soundId);
       if (soundIndex != -1) {
@@ -628,6 +631,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
         sounds[soundIndex]['fav'] = newCategories.contains('favorite');
         sounds[soundIndex]['startMs'] = newStartMs;
         sounds[soundIndex]['endMs'] = newEndMs;
+        sounds[soundIndex]['volume'] = newVolume;
       }
     });
     saveSoundsToStorage();
@@ -891,7 +895,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                   MaterialPageRoute(
                     builder: (context) => AddSoundPage(
                       categories: _categories,
-                      onSoundAdded: (filePath, title, categories, color) async {
+                      onSoundAdded: (filePath, title, categories, color, volume) async {
                         final savedFileName = await saveFileToPermanentStorage(filePath);
                         setState(() {
                           sounds.add({
@@ -901,6 +905,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                             'categories': categories,
                             'fav': false,
                             'color': '#${color.toARGB32().toRadixString(16).padLeft(8, '0')}',
+                            'volume': volume,
                           });
                         });
                         await saveSoundsToStorage();
@@ -1182,6 +1187,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         isPlaying: _currentSound == sound['id'],
                         startMs: sound['startMs'] ?? 0,
                         endMs: sound['endMs'] as int?,
+                        volume: (sound['volume'] as num?)?.toDouble() ?? 1.0,
                         onPressed: () async {
                           if (_isDeleteMode) {
                             await deleteSound(sound['id']);
@@ -1194,8 +1200,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
                             }
                           }
                         },
-                        onUpdate: (newTitle, newCategories, newColor, newStartMs, newEndMs) {
-                          _updateSound(sound['id'], newTitle, newCategories, newColor, newStartMs, newEndMs);
+                        onUpdate: (newTitle, newCategories, newColor, newStartMs, newEndMs, newVolume) {
+                          _updateSound(sound['id'], newTitle, newCategories, newColor, newStartMs, newEndMs, newVolume);
                         },
                         onToggleFavorite: () =>
                             _toggleFavorite(sound['id']),

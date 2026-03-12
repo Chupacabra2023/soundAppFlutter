@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
+import 'dart:async';
 import 'dart:io';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'sound_data.dart';
@@ -22,7 +23,7 @@ class _FileEntry {
 
 class AddSoundPage extends StatefulWidget {
   final List<String> categories;
-  final Function(String filePath, String title, List<String> categories, Color color) onSoundAdded;
+  final Function(String filePath, String title, List<String> categories, Color color, double volume) onSoundAdded;
 
   const AddSoundPage({
     super.key,
@@ -38,11 +39,15 @@ class _AddSoundPageState extends State<AddSoundPage> {
   final _record = AudioRecorder();
   final _player = AudioPlayer();
   bool _isRecording = false;
+  bool _isPlaying = false;
+  Timer? _trimTimer;
   String? _recordedPath;
 
   final List<_FileEntry> _selectedFiles = [];
   final List<String> _selectedCategories = [];
   Color _selectedColor = const Color(0xFF7BAFD4);
+
+  double _volume = 1.0;
 
   // Trim state (only for single file / recording)
   int _trimStartMs = 0;
@@ -56,6 +61,11 @@ class _AddSoundPageState extends State<AddSoundPage> {
   void initState() {
     super.initState();
     _loadBannerAd();
+    _player.onPlayerStateChanged.listen((state) {
+      if (mounted) {
+        setState(() => _isPlaying = state == PlayerState.playing);
+      }
+    });
   }
 
   void _loadBannerAd() {
@@ -75,6 +85,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
 
   @override
   void dispose() {
+    _trimTimer?.cancel();
     _bannerAd?.dispose();
     _record.dispose();
     _player.dispose();
@@ -201,7 +212,21 @@ class _AddSoundPageState extends State<AddSoundPage> {
   Future<void> _playSound() async {
     if (_selectedFiles.length == 1) {
       try {
+        _trimTimer?.cancel();
+        await _player.stop();
+        await _player.setVolume(_volume);
         await _player.play(DeviceFileSource(_selectedFiles.first.path));
+
+        final hasTrim = _fileDurationMs > 0 &&
+            (_trimStartMs > 0 || _trimEndMs < _fileDurationMs);
+
+        if (hasTrim) {
+          await _player.seek(Duration(milliseconds: _trimStartMs));
+          final playDurationMs = _trimEndMs - _trimStartMs;
+          _trimTimer = Timer(Duration(milliseconds: playDurationMs), () {
+            _player.stop();
+          });
+        }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -210,6 +235,11 @@ class _AddSoundPageState extends State<AddSoundPage> {
         }
       }
     }
+  }
+
+  Future<void> _stopSound() async {
+    _trimTimer?.cancel();
+    await _player.stop();
   }
 
   void _addNewCategory() async {
@@ -323,6 +353,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
           cleanName,
           List.from(_selectedCategories),
           _selectedColor,
+          _volume,
         );
       }
 
@@ -390,10 +421,12 @@ class _AddSoundPageState extends State<AddSoundPage> {
                       ),
                       const SizedBox(width: 8),
                       IconButton(
-                        onPressed: isSingle ? _playSound : null,
-                        icon: const Icon(Icons.play_arrow),
+                        onPressed: isSingle
+                            ? (_isPlaying ? _stopSound : _playSound)
+                            : null,
+                        icon: Icon(_isPlaying ? Icons.stop : Icons.play_arrow),
                         color: isSingle ? iconColor : Colors.grey[400],
-                        tooltip: l10n.get('play'),
+                        tooltip: _isPlaying ? l10n.get('stop') : l10n.get('play'),
                       ),
                       const SizedBox(width: 8),
                       IconButton(
@@ -443,6 +476,26 @@ class _AddSoundPageState extends State<AddSoundPage> {
                     ),
                     const SizedBox(height: 8),
                   ],
+
+                  // 🔊 Volume
+                  Text(
+                    '🔊 ${l10n.get('volume')}: ${(_volume * 100).round()}%',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  Slider(
+                    value: _volume,
+                    min: 0.0,
+                    max: 1.0,
+                    divisions: 20,
+                    activeColor: Colors.blueGrey[800],
+                    inactiveColor: Colors.grey[300],
+                    onChanged: (value) {
+                      setState(() => _volume = value);
+                      _player.setVolume(value);
+                    },
+                  ),
+
+                  const SizedBox(height: 8),
 
                   // 📝 File name fields
                   if (_selectedFiles.isNotEmpty) ...[

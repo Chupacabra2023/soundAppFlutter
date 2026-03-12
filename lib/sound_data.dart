@@ -646,5 +646,6 @@ List<Map<String, dynamic>>.generate(assetSoundFiles.length, (index) {
     'color': _colorFromLightness(index, assetSoundFiles.length),
     'startMs': 0,
     'endMs': null,
+    'volume': 1.0,
   };
 });

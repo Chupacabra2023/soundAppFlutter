@@ -63,6 +63,7 @@ class AppLocalizations {
       'stopRecording': 'Stop recording',
       'record': 'Record',
       'play': 'Play',
+      'stop': 'Stop',
       'pickFile': 'Pick file',
       'addCategory': 'Add category',
       'saveSound': 'Save sound',
@@ -77,6 +78,7 @@ class AppLocalizations {
       'privacySettings': 'Privacy Settings',
       'privacySettingsDesc': 'Manage your ad personalization preferences',
       'managePrivacy': 'Manage Privacy',
+      'volume': 'Volume',
     },
     'sk': {
       'settings': 'Nastavenia',
@@ -128,6 +130,7 @@ class AppLocalizations {
       'stopRecording': 'Zastaviť nahrávanie',
       'record': 'Nahrať',
       'play': 'Prehrať',
+      'stop': 'Zastaviť',
       'pickFile': 'Vybrať súbor',
       'addCategory': 'Pridať kategóriu',
       'saveSound': 'Uložiť zvuk',
@@ -142,6 +145,7 @@ class AppLocalizations {
       'privacySettings': 'Nastavenia súkromia',
       'privacySettingsDesc': 'Spravujte svoje preferencie personalizácie reklám',
       'managePrivacy': 'Spravovať súkromie',
+      'volume': 'Hlasitosť',
     },
     'es': {
       'settings': 'Configuración',
@@ -193,6 +197,7 @@ class AppLocalizations {
       'stopRecording': 'Detener grabación',
       'record': 'Grabar',
       'play': 'Reproducir',
+      'stop': 'Detener',
       'pickFile': 'Seleccionar archivo',
       'addCategory': 'Agregar categoría',
       'saveSound': 'Guardar sonido',
@@ -207,6 +212,7 @@ class AppLocalizations {
       'privacySettings': 'Configuración de privacidad',
       'privacySettingsDesc': 'Administra tus preferencias de personalización de anuncios',
       'managePrivacy': 'Gestionar privacidad',
+      'volume': 'Volumen',
     },
     'fr': {
       'settings': 'Paramètres',
@@ -258,6 +264,7 @@ class AppLocalizations {
       'stopRecording': 'Arrêter l\'enregistrement',
       'record': 'Enregistrer',
       'play': 'Lire',
+      'stop': 'Arrêter',
       'pickFile': 'Choisir un fichier',
       'addCategory': 'Ajouter une catégorie',
       'saveSound': 'Enregistrer le son',
@@ -272,6 +279,7 @@ class AppLocalizations {
       'privacySettings': 'Paramètres de confidentialité',
       'privacySettingsDesc': 'Gérez vos préférences de personnalisation des publicités',
       'managePrivacy': 'Gérer la confidentialité',
+      'volume': 'Volume',
     },
     'de': {
       'settings': 'Einstellungen',
@@ -323,6 +331,7 @@ class AppLocalizations {
       'stopRecording': 'Aufnahme stoppen',
       'record': 'Aufnehmen',
       'play': 'Abspielen',
+      'stop': 'Stoppen',
       'pickFile': 'Datei auswählen',
       'addCategory': 'Kategorie hinzufügen',
       'saveSound': 'Sound speichern',
@@ -337,6 +346,7 @@ class AppLocalizations {
       'privacySettings': 'Datenschutzeinstellungen',
       'privacySettingsDesc': 'Präferenzen für personalisierte Werbung verwalten',
       'managePrivacy': 'Datenschutz verwalten',
+      'volume': 'Lautstärke',
     },
     'ru': {
       'settings': 'Настройки',
@@ -388,6 +398,7 @@ class AppLocalizations {
       'stopRecording': 'Остановить запись',
       'record': 'Записать',
       'play': 'Воспроизвести',
+      'stop': 'Остановить',
       'pickFile': 'Выбрать файл',
       'addCategory': 'Добавить категорию',
       'saveSound': 'Сохранить звук',
@@ -402,6 +413,7 @@ class AppLocalizations {
       'privacySettings': 'Настройки конфиденциальности',
       'privacySettingsDesc': 'Управляйте предпочтениями персонализации рекламы',
       'managePrivacy': 'Управление конфиденциальностью',
+      'volume': 'Громкость',
     },
   };
 
