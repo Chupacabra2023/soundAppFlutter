@@ -25,10 +25,12 @@ class SoundButton extends StatefulWidget {
   final VoidCallback onToggleFavorite;
   final Color buttonColor;   // display farba (môže byť červená v delete móde)
   final Color savedColor;    // skutočná uložená farba (vždy správna)
+  final bool isDeleteMode;
   final bool isPlaying;
   final int startMs;
   final int? endMs;
   final double volume;
+  final bool simpleMode;
 
   const SoundButton({
     super.key,
@@ -42,10 +44,12 @@ class SoundButton extends StatefulWidget {
     required this.onPressed,
     required this.onUpdate,
     required this.onToggleFavorite,
+    this.isDeleteMode = false,
     this.isPlaying = false,
     this.startMs = 0,
     this.endMs,
     this.volume = 1.0,
+    this.simpleMode = false,
   });
 
   @override
@@ -163,13 +167,67 @@ class _SoundButtonState extends State<SoundButton> {
                   );
                   dialogBannerAd!.load();
                 }
-                return Padding(
-                  padding: const EdgeInsets.all(16),
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.blueGrey[900],
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back, color: Colors.white),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          Expanded(
+                            child: Text(
+                              _currentDisplayName,
+                              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.check, color: Colors.white),
+                            onPressed: () {
+                              final finalName = tempDisplayName.trim().isEmpty
+                                  ? _currentDisplayName
+                                  : tempDisplayName.trim();
+
+                              setState(() {
+                                _currentDisplayName = finalName;
+                                nameController.text = finalName;
+                              });
+
+                              final int? finalEndMs = (dialogTotalDurationMs > 0 && tempEndMs == dialogTotalDurationMs)
+                                  ? null
+                                  : tempEndMs;
+
+                              widget.onUpdate(
+                                finalName,
+                                tempSelectedCategories,
+                                tempSelectedColor,
+                                tempStartMs,
+                                finalEndMs,
+                                tempVolume,
+                              );
+                              Navigator.pop(context);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Flexible(
+                      child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   child: SingleChildScrollView(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        const SizedBox(height: 12),
                         TextField(
                           controller: nameController,
                           maxLength: 30,
@@ -281,12 +339,14 @@ class _SoundButtonState extends State<SoundButton> {
                         ),
                         const SizedBox(height: 8),
 
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
+                        GridView.count(
+                          crossAxisCount: 8,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          mainAxisSpacing: 4,
+                          crossAxisSpacing: 4,
                           children: kColorPalette.map((color) {
-                            final isSelected =
-                                tempSelectedColor.toARGB32() == color.toARGB32();
+                            final isSelected = tempSelectedColor.toARGB32() == color.toARGB32();
                             return GestureDetector(
                               onTap: () {
                                 setModalState(() {
@@ -294,13 +354,11 @@ class _SoundButtonState extends State<SoundButton> {
                                 });
                               },
                               child: Container(
-                                width: 42,
-                                height: 42,
                                 decoration: BoxDecoration(
                                   color: isSelected ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87) : Colors.transparent,
                                   shape: BoxShape.circle,
                                 ),
-                                padding: const EdgeInsets.all(3),
+                                padding: const EdgeInsets.all(2),
                                 child: Container(
                                   decoration: BoxDecoration(
                                     color: color,
@@ -358,15 +416,6 @@ class _SoundButtonState extends State<SoundButton> {
                                   ],
                                 ),
                               ),
-                              TextButton(
-                                onPressed: () {
-                                  setModalState(() {
-                                    tempStartMs = 0;
-                                    tempEndMs = dialogTotalDurationMs;
-                                  });
-                                },
-                                child: Text(l10n.get('trimReset')),
-                              ),
                             ],
                           ),
 
@@ -390,41 +439,6 @@ class _SoundButtonState extends State<SoundButton> {
                         ),
 
                         const SizedBox(height: 16),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blueGrey[800],
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                          onPressed: () {
-                            final finalName = tempDisplayName.trim().isEmpty
-                                ? _currentDisplayName
-                                : tempDisplayName.trim();
-
-                            setState(() {
-                              _currentDisplayName = finalName;
-                              nameController.text = finalName;
-                            });
-
-                            final int? finalEndMs = (dialogTotalDurationMs > 0 && tempEndMs == dialogTotalDurationMs)
-                                ? null
-                                : tempEndMs;
-
-                            widget.onUpdate(
-                              finalName,
-                              tempSelectedCategories,
-                              tempSelectedColor,
-                              tempStartMs,
-                              finalEndMs,
-                              tempVolume,
-                            );
-                            Navigator.pop(context);
-                          },
-                          child: Text(l10n.get('save')),
-                        ),
-
-                        // Banner Ad pod Save button - lazy loaded
-                        const SizedBox(height: 16),
                         if (isBannerLoaded && dialogBannerAd != null)
                           Container(
                             alignment: Alignment.center,
@@ -441,6 +455,9 @@ class _SoundButtonState extends State<SoundButton> {
                       ],
                     ),
                   ),
+                ),
+                    ),
+                  ],
                 );
               },
             ),
@@ -462,12 +479,15 @@ class _SoundButtonState extends State<SoundButton> {
           color: widget.buttonColor,
           borderRadius: _kButtonBorderRadius,
           boxShadow: _kButtonShadow,
+          border: widget.isDeleteMode
+              ? Border.all(color: Colors.redAccent, width: 2.5)
+              : null,
         ),
         child: Column(
           children: [
 
             Expanded(
-              flex: 75, // Zmenšené z 80, aby bol spodný panel väčší
+              flex: widget.simpleMode ? 100 : 75,
               child: Center(
                 child: widget.isPlaying
                     ? const Column(
@@ -502,6 +522,7 @@ class _SoundButtonState extends State<SoundButton> {
             ),
 
 
+            if (!widget.simpleMode)
             Expanded(
               flex: 25, // Zväčšené z 20 na 25 (o trochu väčší spodný panel)
               child: Container(

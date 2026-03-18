@@ -9,7 +9,6 @@ import 'dart:io';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'sound_data.dart';
 import 'app_localizations.dart';
-import 'main.dart';
 
 class _FileEntry {
   final String path;
@@ -60,7 +59,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
   @override
   void initState() {
     super.initState();
-    _loadBannerAd();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
     _player.onPlayerStateChanged.listen((state) {
       if (mounted) {
         setState(() => _isPlaying = state == PlayerState.playing);
@@ -71,7 +70,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
   void _loadBannerAd() {
     _bannerAd = BannerAd(
       adUnitId: 'ca-app-pub-3948591512361475/7085908168',
-      size: AdSize.largeBanner,
+      size: AdSize.mediumRectangle,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (ad) {
@@ -126,7 +125,11 @@ class _AddSoundPageState extends State<AddSoundPage> {
     final withoutExt = fileName.contains('.')
         ? fileName.substring(0, fileName.lastIndexOf('.'))
         : fileName;
-    return withoutExt.replaceAll('_', ' ').replaceAll('-', ' ');
+    return withoutExt
+        .replaceAll('_', ' ')
+        .replaceAll('-', ' ')
+        .replaceAll(RegExp(r' +'), ' ')
+        .trim();
   }
 
   Future<void> _startRecording() async {
@@ -254,7 +257,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
           title: Text(l10n.get('addNewSound'), style: const TextStyle(color: Colors.white)),
           content: TextField(
             controller: newCatController,
-            maxLength: 15,
+            maxLength: 40,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
               hintText: l10n.get('categoryName'),
@@ -313,19 +316,46 @@ class _AddSoundPageState extends State<AddSoundPage> {
       }
     }
 
+    if (_selectedCategories.isEmpty) {
+      final l10n = AppLocalizations.of(context);
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(l10n.get('noCategoryTitle')),
+          content: Text(l10n.get('noCategoryMessage')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(l10n.get('cancel')),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueGrey[800],
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(l10n.get('addAnyway')),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+    }
+
     try {
       final hasTrim = _fileDurationMs > 0 &&
           (_trimStartMs > 0 || _trimEndMs < _fileDurationMs);
 
       for (final entry in _selectedFiles) {
         final extension = entry.path.split('.').last;
-        final cleanName = entry.nameController.text.trim()
+        final displayName = entry.nameController.text.trim();
+        final safeFileName = displayName
             .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
             .replaceAll(' ', '_');
 
-        if (cleanName.isEmpty) continue;
+        if (safeFileName.isEmpty) continue;
 
-        final finalPath = '${Directory.systemTemp.path}/$cleanName.$extension';
+        final finalPath = '${Directory.systemTemp.path}/$safeFileName.$extension';
         final targetFile = File(finalPath);
         if (await targetFile.exists()) await targetFile.delete();
 
@@ -350,7 +380,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
 
         widget.onSoundAdded(
           finalPath,
-          cleanName,
+          displayName,
           List.from(_selectedCategories),
           _selectedColor,
           _volume,
@@ -386,12 +416,11 @@ class _AddSoundPageState extends State<AddSoundPage> {
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
-            icon: Icon(
-              isDark ? Icons.light_mode : Icons.dark_mode,
-              color: Colors.white,
-            ),
-            onPressed: () => MyApp.toggleThemeStatic(context),
+            icon: const Icon(Icons.check, color: Colors.white),
+            tooltip: l10n.get('saveSound'),
+            onPressed: _selectedFiles.isNotEmpty ? _saveSound : null,
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: Column(
@@ -596,21 +625,22 @@ class _AddSoundPageState extends State<AddSoundPage> {
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                  GridView.count(
+                    crossAxisCount: 8,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 4,
+                    crossAxisSpacing: 4,
                     children: kColorPalette.map((color) {
                       final isSelected = _selectedColor.toARGB32() == color.toARGB32();
                       return GestureDetector(
                         onTap: () => setState(() => _selectedColor = color),
                         child: Container(
-                          width: 42,
-                          height: 42,
                           decoration: BoxDecoration(
                             color: isSelected ? (isDark ? Colors.white : Colors.black87) : Colors.transparent,
                             shape: BoxShape.circle,
                           ),
-                          padding: const EdgeInsets.all(3),
+                          padding: const EdgeInsets.all(2),
                           child: Container(
                             decoration: BoxDecoration(
                               color: color,
@@ -622,23 +652,6 @@ class _AddSoundPageState extends State<AddSoundPage> {
                     }).toList(),
                   ),
 
-                  const SizedBox(height: 24),
-
-                  // 💾 Save button
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueGrey[800],
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    onPressed: _selectedFiles.isNotEmpty ? _saveSound : null,
-                    icon: const Icon(Icons.save),
-                    label: Text(
-                      _selectedFiles.length > 1
-                          ? '${l10n.get('saveSound')} (${_selectedFiles.length})'
-                          : l10n.get('saveSound'),
-                    ),
-                  ),
                 ],
               ),
             ),

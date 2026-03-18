@@ -2,12 +2,18 @@ import 'package:flutter/material.dart';
 import 'app_localizations.dart';
 import 'main.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'sound_data.dart';
 
 class SettingsPage extends StatefulWidget {
   final List<String> categories;
   final VoidCallback onResetSounds;
   final Function(String category, bool deleteSounds) onDeleteCategory;
   final Function(String oldName, String newName) onRenameCategory;
+  final Function(String category) onAddCategory;
+  final Map<String, int> categoryColors;
+  final Function(String category, Color color) onSetCategoryColor;
+  final bool simpleMode;
+  final Function(bool) onToggleSimpleMode;
 
   const SettingsPage({
     super.key,
@@ -15,6 +21,11 @@ class SettingsPage extends StatefulWidget {
     required this.onResetSounds,
     required this.onDeleteCategory,
     required this.onRenameCategory,
+    required this.onAddCategory,
+    required this.categoryColors,
+    required this.onSetCategoryColor,
+    required this.simpleMode,
+    required this.onToggleSimpleMode,
   });
 
   @override
@@ -23,12 +34,102 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late List<String> _localCategories;
+  late Map<String, int> _localCategoryColors;
+  late bool _simpleMode;
+  BannerAd? _bannerAd;
+  bool _isBannerAdLoaded = false;
 
   @override
   void initState() {
     super.initState();
-    // Vytvor lokálnu kópiu kategórií pre okamžitú UI aktualizáciu
     _localCategories = List.from(widget.categories);
+    _localCategoryColors = Map.from(widget.categoryColors);
+    _simpleMode = widget.simpleMode;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
+  }
+
+  Future<void> _loadBannerAd() async {
+    final width = MediaQuery.of(context).size.width.truncate();
+    final adSize = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
+    if (adSize == null || !mounted) return;
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-3948591512361475/7117189914',
+      size: adSize,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (mounted) setState(() => _isBannerAdLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) => ad.dispose(),
+      ),
+    );
+    _bannerAd?.load();
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
+  }
+
+  void _showColorPicker(BuildContext context, String category) {
+    final currentColorValue = _localCategoryColors[category];
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                category,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: kColorPalette.map((color) {
+                  final isSelected = currentColorValue == color.toARGB32();
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _localCategoryColors[category] = color.toARGB32();
+                      });
+                      widget.onSetCategoryColor(category, color);
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: isSelected
+                            ? Border.all(color: Colors.white, width: 3)
+                            : null,
+                        boxShadow: isSelected
+                            ? [BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 6, spreadRadius: 1)]
+                            : null,
+                      ),
+                      child: isSelected
+                          ? const Icon(Icons.check, color: Colors.white, size: 18)
+                          : null,
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -71,6 +172,49 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // 🎛️ Simple Mode Section
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(Icons.touch_app, color: Colors.blueGrey[800]),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.get('simpleMode'),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.get('simpleModeDesc'),
+                          style: const TextStyle(color: Colors.grey, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: _simpleMode,
+                    activeThumbColor: Colors.blueGrey[800],
+                    onChanged: (value) {
+                      setState(() => _simpleMode = value);
+                      widget.onToggleSimpleMode(value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
           // 🔄 Reset Sounds Section
           Card(
             elevation: 2,
@@ -168,12 +312,55 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       Icon(Icons.category, color: Colors.blueGrey[800]),
                       const SizedBox(width: 12),
-                      Text(
-                        l10n.get('manageCategories'),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                      Expanded(
+                        child: Text(
+                          l10n.get('manageCategories'),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.add_circle, color: Colors.blueGrey[700]),
+                        tooltip: l10n.get('addCategory'),
+                        onPressed: () async {
+                          final controller = TextEditingController();
+                          final newName = await showDialog<String>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              backgroundColor: Theme.of(context).cardColor,
+                              title: Text(l10n.get('newCategory')),
+                              content: TextField(
+                                controller: controller,
+                                autofocus: true,
+                                maxLength: 40,
+                                decoration: InputDecoration(
+                                  labelText: l10n.get('enterCategoryName'),
+                                  border: const OutlineInputBorder(),
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: Text(l10n.get('cancel')),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(context, controller.text.trim()),
+                                  child: Text(l10n.get('save')),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          if (newName != null && newName.isNotEmpty &&
+                              !_localCategories.contains(newName)) {
+                            setState(() {
+                              _localCategories.add(newName);
+                            });
+                            widget.onAddCategory(newName);
+                          }
+                        },
                       ),
                     ],
                   ),
@@ -191,10 +378,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     return Card(
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
-                        leading: Icon(
-                          Icons.label,
-                          color: Colors.blueGrey[700],
-                        ),
                         title: Text(
                           category,
                           style: const TextStyle(fontWeight: FontWeight.w500),
@@ -243,6 +426,20 @@ class _SettingsPageState extends State<SettingsPage> {
                                   widget.onRenameCategory(category, newName);
                                 }
                               },
+                            ),
+                            GestureDetector(
+                              onTap: () => _showColorPicker(context, category),
+                              child: Container(
+                                width: 26,
+                                height: 26,
+                                margin: const EdgeInsets.symmetric(horizontal: 4),
+                                decoration: BoxDecoration(
+                                  color: _localCategoryColors.containsKey(category)
+                                      ? Color(_localCategoryColors[category]!)
+                                      : kColorPalette.first,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete, color: Colors.redAccent),
@@ -487,6 +684,17 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
+
+          const SizedBox(height: 16),
+          Container(
+            alignment: Alignment.center,
+            width: double.infinity,
+            height: _bannerAd != null ? _bannerAd!.size.height.toDouble() : 60,
+            child: _isBannerAdLoaded && _bannerAd != null
+                ? AdWidget(ad: _bannerAd!)
+                : const SizedBox.shrink(),
+          ),
+          const SizedBox(height: 16),
         ],
       ),
     );

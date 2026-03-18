@@ -15,29 +15,55 @@ import 'app_localizations.dart';
 import 'language_picker_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  MobileAds.instance.initialize();
+  runApp(const _SplashApp());
+  await _initializeConsent();
+  await MobileAds.instance.initialize();
   runApp(const MyApp());
-  _initializeConsent();
 }
-void _initializeConsent() {
-  final params = ConsentRequestParameters();
 
+class _SplashApp extends StatelessWidget {
+  const _SplashApp();
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+    );
+  }
+}
+
+Future<void> _initializeConsent() async {
+  final completer = Completer<void>();
+
+  final params = ConsentRequestParameters();
   ConsentInformation.instance.requestConsentInfoUpdate(
     params,
-        () async {
+    () async {
       if (await ConsentInformation.instance.isConsentFormAvailable()) {
         ConsentForm.loadAndShowConsentFormIfRequired((formError) {
           if (formError != null) {
             debugPrint('Consent form error: ${formError.message}');
           }
+          if (!completer.isCompleted) completer.complete();
         });
+      } else {
+        if (!completer.isCompleted) completer.complete();
       }
     },
-        (error) {
+    (error) {
       debugPrint('Consent info error: ${error.message}');
+      if (!completer.isCompleted) completer.complete();
     },
+  );
+
+  return completer.future.timeout(
+    const Duration(seconds: 5),
+    onTimeout: () => debugPrint('Consent timeout - continuing without consent'),
   );
 }
 
@@ -175,8 +201,11 @@ class _SoundboardPageState extends State<SoundboardPage> {
   String _searchQuery = '';
   bool _isDeleteMode = false;
   bool _isResetting = false; // Loading state pre reset
+  bool _simpleMode = false;
   final Set<String> _selectedCategories = {'everything'};
   List<String> _categories = ['everything'];
+  List<String> _customCategories = []; // kategórie uložené nezávisle od zvukov
+  Map<String, int> _categoryColors = {}; // farby kategórií (category name → color value)
 
   // Sound list - empty by default, defaults will be loaded in _initializeSounds()
   final List<Map<String, dynamic>> sounds = [];
@@ -235,10 +264,18 @@ class _SoundboardPageState extends State<SoundboardPage> {
               loadedList[i]['id'] = 'migrated_${migrationBase + i}';
             }
           }
+          final savedCategories = data['categories'];
+          final savedCategoryColors = data['categoryColors'];
           setState(() {
             sounds
               ..clear()
               ..addAll(loadedList);
+            if (savedCategories != null) {
+              _customCategories = List<String>.from(savedCategories);
+            }
+            if (savedCategoryColors != null) {
+              _categoryColors = Map<String, int>.from(savedCategoryColors);
+            }
           });
           debugPrint('Loaded ${sounds.length} sounds from JSON (version: $savedVersion)');
         }
@@ -302,6 +339,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
       final data = {
         'version': DATA_VERSION,
         'sounds': sounds,
+        'categories': _customCategories,
+        'categoryColors': _categoryColors,
       };
 
       await file.writeAsString(jsonEncode(data));
@@ -360,7 +399,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
       }
 
       return true;
-    }).toList(growable: false);
+    }).toList()
+      ..sort((a, b) => (a['title'] ?? '').toString().toLowerCase()
+          .compareTo((b['title'] ?? '').toString().toLowerCase()));
   }
 
   @override
@@ -370,6 +411,10 @@ class _SoundboardPageState extends State<SoundboardPage> {
   }
 
   Future<void> _initializeApp() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _simpleMode = prefs.getBool('simple_mode') ?? false;
+    });
     await _checkAndLoadSounds();
     _rebuildCategoriesList();
     _updateFilteredSounds(); // ✅ Inicializuj cache
@@ -384,6 +429,11 @@ class _SoundboardPageState extends State<SoundboardPage> {
   // Funkcia na dynamické vytvorenie zoznamu kategórií podľa skutočne používaných
   void _rebuildCategoriesList() {
     final usedCategories = <String>{'everything'}; // Len 'everything' je vždy prítomné
+
+    // Pridaj explicitne vytvorené kategórie
+    for (var cat in _customCategories) {
+      usedCategories.add(cat);
+    }
 
     // Prejdi všetky zvuky a zozbieraj ich kategórie
     for (var sound in sounds) {
@@ -633,6 +683,12 @@ class _SoundboardPageState extends State<SoundboardPage> {
         sounds[soundIndex]['endMs'] = newEndMs;
         sounds[soundIndex]['volume'] = newVolume;
       }
+      // Ensure any category assigned via sound button dialog is persisted
+      for (final cat in newCategories) {
+        if (cat != 'everything' && cat != 'favorite' && !_customCategories.contains(cat)) {
+          _customCategories.add(cat);
+        }
+      }
     });
     saveSoundsToStorage();
     _rebuildCategoriesList();
@@ -664,6 +720,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
       }
 
       // Načítaj defaultné zvuky s kategóriami
+      setState(() {
+        _categoryColors = {};
+      });
       await _initializeSounds();
       _rebuildCategoriesList();
       _updateFilteredSounds();
@@ -725,15 +784,44 @@ class _SoundboardPageState extends State<SoundboardPage> {
       });
     }
 
+    _customCategories.remove(category);
     await saveSoundsToStorage();
-    _rebuildCategoriesList();   // tiež vyzmaže prázdne kategórie z UI
+    _rebuildCategoriesList();
     _updateFilteredSounds();
     if (mounted) setState(() {}); // zaruč rebuild gridu
+  }
+
+  // Funkcia na pridanie kategórie
+  void _addCategory(String name) {
+    if (!_customCategories.contains(name)) {
+      setState(() {
+        _customCategories.add(name);
+      });
+      _rebuildCategoriesList();
+      saveSoundsToStorage();
+    }
+  }
+
+  // Funkcia na nastavenie farby kategórie — prebarví všetky buttony v danej kategórii
+  void _setCategoryColor(String category, Color color) {
+    setState(() {
+      _categoryColors[category] = color.toARGB32();
+      for (var sound in sounds) {
+        final cats = List<String>.from(sound['categories'] ?? []);
+        if (cats.contains(category)) {
+          sound['color'] = '#${color.toARGB32().toRadixString(16).padLeft(8, '0').toUpperCase()}';
+        }
+      }
+    });
+    saveSoundsToStorage();
   }
 
   // Funkcia na premenovanie kategórie
   void _renameCategory(String oldName, String newName) {
     setState(() {
+      final catIndex = _customCategories.indexOf(oldName);
+      if (catIndex != -1) _customCategories[catIndex] = newName;
+
       for (var sound in sounds) {
         final categories = List<String>.from(sound['categories'] ?? []);
         final index = categories.indexOf(oldName);
@@ -958,6 +1046,16 @@ class _SoundboardPageState extends State<SoundboardPage> {
                     onResetSounds: _resetSounds,
                     onDeleteCategory: (cat, del) => _deleteCategory(cat, del),
                     onRenameCategory: _renameCategory,
+                    onAddCategory: _addCategory,
+                    categoryColors: _categoryColors,
+                    onSetCategoryColor: _setCategoryColor,
+                    simpleMode: _simpleMode,
+                    onToggleSimpleMode: (value) {
+                      setState(() => _simpleMode = value);
+                      SharedPreferences.getInstance().then(
+                        (prefs) => prefs.setBool('simple_mode', value),
+                      );
+                    },
                   ),
                 ),
               );
@@ -1008,9 +1106,15 @@ class _SoundboardPageState extends State<SoundboardPage> {
                     final category = _categories[index];
                     final isSelected = _selectedCategories.contains(category);
                     final isDark = Theme.of(context).brightness == Brightness.dark;
+                    final l10n = AppLocalizations.of(context);
+                    final displayLabel = category == 'everything'
+                        ? l10n.get('everything')
+                        : category == 'favorite'
+                            ? l10n.get('favorite')
+                            : category;
                     return FilterChip(
                       label: Text(
-                        category,
+                        displayLabel,
                         style: TextStyle(
                           fontSize: 12,
                           color: isSelected
@@ -1024,20 +1128,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
                       showCheckmark: false,
                       onSelected: (_) {
                         setState(() {
-                          if (category == 'everything') {
-                            _selectedCategories.clear();
-                            _selectedCategories.add('everything');
-                          } else {
-                            _selectedCategories.remove('everything');
-                            if (_selectedCategories.contains(category)) {
-                              _selectedCategories.remove(category);
-                              if (_selectedCategories.isEmpty) {
-                                _selectedCategories.add('everything');
-                              }
-                            } else {
-                              _selectedCategories.add(category);
-                            }
-                          }
+                          _selectedCategories.clear();
+                          _selectedCategories.add(category);
                         });
                         _updateFilteredSounds();
                       },
@@ -1180,6 +1272,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                             ? Colors.redAccent
                             : _parseColor(sound['color'] ?? '#42A5F5'),
                         savedColor: _parseColor(sound['color'] ?? '#42A5F5'),
+                        isDeleteMode: _isDeleteMode,
                         categories: List<String>.from(
                             sound['categories'] ?? []),
                         isFavorite: sound['fav'] ?? false,
@@ -1205,6 +1298,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         },
                         onToggleFavorite: () =>
                             _toggleFavorite(sound['id']),
+                        simpleMode: _simpleMode,
                       );
                     },
                   ),

@@ -120,7 +120,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get shufflePlayDescription => 'Lire des sons aléatoires en continu';
 
   @override
-  String get everything => 'tout';
+  String get everything => 'Tous';
 
   @override
   String get favorite => 'favori';
