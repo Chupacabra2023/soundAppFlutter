@@ -202,6 +202,12 @@ class _SoundboardPageState extends State<SoundboardPage> {
   bool _isDeleteMode = false;
   bool _isResetting = false; // Loading state pre reset
   bool _simpleMode = false;
+  bool _showLoop = true;
+  bool _showSpeed = true;
+  bool _showShuffle = true;
+  bool _showAdd = true;
+  bool _showDelete = true;
+  bool _showDarkMode = true;
   final Set<String> _selectedCategories = {'everything'};
   List<String> _categories = ['everything'];
   List<String> _customCategories = []; // kategórie uložené nezávisle od zvukov
@@ -414,6 +420,12 @@ class _SoundboardPageState extends State<SoundboardPage> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _simpleMode = prefs.getBool('simple_mode') ?? false;
+      _showLoop = prefs.getBool('show_loop') ?? true;
+      _showSpeed = prefs.getBool('show_speed') ?? true;
+      _showShuffle = prefs.getBool('show_shuffle') ?? true;
+      _showAdd = prefs.getBool('show_add') ?? true;
+      _showDelete = prefs.getBool('show_delete') ?? true;
+      _showDarkMode = prefs.getBool('show_darkmode') ?? true;
     });
     await _checkAndLoadSounds();
     _rebuildCategoriesList();
@@ -925,6 +937,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
     // ⚡ Cache screen width - používaj sizeOf namiesto .of aby sa nerebuildovalo pri klávesnici!
     final screenWidth = MediaQuery.sizeOf(context).width;
     final crossAxisCount = _calculateCrossAxisCount(screenWidth);
+    final visibleLeadingCount = [_showLoop, _showSpeed, _showShuffle, _showAdd].where((b) => b).length;
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -935,104 +948,110 @@ class _SoundboardPageState extends State<SoundboardPage> {
         leading: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              icon: Icon(
-                _isLooping ? Icons.loop : Icons.loop_outlined,
-                color: _isLooping ? Colors.lightBlueAccent : Colors.white,
+            if (_showLoop)
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: Icon(
+                  _isLooping ? Icons.loop : Icons.loop_outlined,
+                  color: _isLooping ? Colors.lightBlueAccent : Colors.white,
+                ),
+                onPressed: _toggleLoop,
+                tooltip: l10n.get('loop'),
               ),
-              onPressed: _toggleLoop,
-              tooltip: l10n.get('loop'),
-            ),
-            PopupMenuButton<double>(
-              icon: const Icon(Icons.speed, color: Colors.white),
-              tooltip: l10n.get('playbackSpeed'),
-              color: Colors.blueGrey[800],
-              onSelected: _changeSpeed,
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 0.5,
-                  child: Text(l10n.get('speed05'), style: const TextStyle(color: Colors.white)),
-                ),
-                PopupMenuItem(
-                  value: 1.0,
-                  child: Text(l10n.get('speed10'), style: const TextStyle(color: Colors.white)),
-                ),
-                PopupMenuItem(
-                  value: 2.0,
-                  child: Text(l10n.get('speed20'), style: const TextStyle(color: Colors.white)),
-                ),
-              ],
-            ),
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              icon: Icon(
-                _isShufflePlay ? Icons.shuffle : Icons.shuffle_outlined,
-                color: _isShufflePlay ? Colors.greenAccent : Colors.white,
-              ),
-              onPressed: _toggleShufflePlay,
-              tooltip: l10n.get('shufflePlay'),
-            ),
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.add, color: Colors.white),
-              tooltip: l10n.get('addSound'),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AddSoundPage(
-                      categories: _categories,
-                      onSoundAdded: (filePath, title, categories, color, volume) async {
-                        final savedFileName = await saveFileToPermanentStorage(filePath);
-                        setState(() {
-                          sounds.add({
-                            'id': 'user_${DateTime.now().millisecondsSinceEpoch}_${sounds.length}',
-                            'name': savedFileName,
-                            'title': title.isNotEmpty ? title : savedFileName,
-                            'categories': categories,
-                            'fav': false,
-                            'color': '#${color.toARGB32().toRadixString(16).padLeft(8, '0')}',
-                            'volume': volume,
-                          });
-                        });
-                        await saveSoundsToStorage();
-                        _rebuildCategoriesList();
-                        _updateFilteredSounds();
-                      },
-                    ),
+            if (_showSpeed)
+              PopupMenuButton<double>(
+                icon: const Icon(Icons.speed, color: Colors.white),
+                tooltip: l10n.get('playbackSpeed'),
+                color: Colors.blueGrey[800],
+                onSelected: _changeSpeed,
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 0.5,
+                    child: Text(l10n.get('speed05'), style: const TextStyle(color: Colors.white)),
                   ),
-                );
-              },
-            ),
+                  PopupMenuItem(
+                    value: 1.0,
+                    child: Text(l10n.get('speed10'), style: const TextStyle(color: Colors.white)),
+                  ),
+                  PopupMenuItem(
+                    value: 2.0,
+                    child: Text(l10n.get('speed20'), style: const TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            if (_showShuffle)
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: Icon(
+                  _isShufflePlay ? Icons.shuffle : Icons.shuffle_outlined,
+                  color: _isShufflePlay ? Colors.greenAccent : Colors.white,
+                ),
+                onPressed: _toggleShufflePlay,
+                tooltip: l10n.get('shufflePlay'),
+              ),
+            if (_showAdd)
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.add, color: Colors.white),
+                tooltip: l10n.get('addSound'),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AddSoundPage(
+                        categories: _categories,
+                        onSoundAdded: (filePath, title, categories, color, volume) async {
+                          final savedFileName = await saveFileToPermanentStorage(filePath);
+                          setState(() {
+                            sounds.add({
+                              'id': 'user_${DateTime.now().millisecondsSinceEpoch}_${sounds.length}',
+                              'name': savedFileName,
+                              'title': title.isNotEmpty ? title : savedFileName,
+                              'categories': categories,
+                              'fav': false,
+                              'color': '#${color.toARGB32().toRadixString(16).padLeft(8, '0')}',
+                              'volume': volume,
+                            });
+                          });
+                          await saveSoundsToStorage();
+                          _rebuildCategoriesList();
+                          _updateFilteredSounds();
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
           ],
         ),
-        leadingWidth: 180,
+        leadingWidth: visibleLeadingCount * 46.0,
         title: const SizedBox.shrink(),
         actions: [
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            icon: Icon(
-              _isDeleteMode ? Icons.close : Icons.delete,
-              color: _isDeleteMode ? Colors.redAccent : Colors.white,
+          if (_showDelete)
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: Icon(
+                _isDeleteMode ? Icons.close : Icons.delete,
+                color: _isDeleteMode ? Colors.redAccent : Colors.white,
+              ),
+              onPressed: () {
+                setState(() {
+                  _isDeleteMode = !_isDeleteMode;
+                });
+              },
+              tooltip: _isDeleteMode ? l10n.get('cancelDeleteMode') : l10n.get('deleteMode'),
             ),
-            onPressed: () {
-              setState(() {
-                _isDeleteMode = !_isDeleteMode;
-              });
-            },
-            tooltip: _isDeleteMode ? l10n.get('cancelDeleteMode') : l10n.get('deleteMode'),
-          ),
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            icon: Icon(
-              Theme.of(context).brightness == Brightness.dark
-                  ? Icons.light_mode
-                  : Icons.dark_mode,
-              color: Colors.white,
+          if (_showDarkMode)
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: Icon(
+                Theme.of(context).brightness == Brightness.dark
+                    ? Icons.light_mode
+                    : Icons.dark_mode,
+                color: Colors.white,
+              ),
+              onPressed: () => MyApp.toggleThemeStatic(context),
             ),
-            onPressed: () => MyApp.toggleThemeStatic(context),
-          ),
           IconButton(
             visualDensity: VisualDensity.compact,
             icon: const Icon(Icons.settings, color: Colors.white),
@@ -1054,6 +1073,27 @@ class _SoundboardPageState extends State<SoundboardPage> {
                       setState(() => _simpleMode = value);
                       SharedPreferences.getInstance().then(
                         (prefs) => prefs.setBool('simple_mode', value),
+                      );
+                    },
+                    showLoop: _showLoop,
+                    showSpeed: _showSpeed,
+                    showShuffle: _showShuffle,
+                    showAdd: _showAdd,
+                    showDelete: _showDelete,
+                    showDarkMode: _showDarkMode,
+                    onToggleToolbarButton: (key, value) {
+                      setState(() {
+                        switch (key) {
+                          case 'loop': _showLoop = value;
+                          case 'speed': _showSpeed = value;
+                          case 'shuffle': _showShuffle = value;
+                          case 'add': _showAdd = value;
+                          case 'delete': _showDelete = value;
+                          case 'darkmode': _showDarkMode = value;
+                        }
+                      });
+                      SharedPreferences.getInstance().then(
+                        (prefs) => prefs.setBool('show_$key', value),
                       );
                     },
                   ),

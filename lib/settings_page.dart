@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:android_intent_plus/android_intent.dart';
 import 'app_localizations.dart';
 import 'main.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -14,6 +15,13 @@ class SettingsPage extends StatefulWidget {
   final Function(String category, Color color) onSetCategoryColor;
   final bool simpleMode;
   final Function(bool) onToggleSimpleMode;
+  final bool showLoop;
+  final bool showSpeed;
+  final bool showShuffle;
+  final bool showAdd;
+  final bool showDelete;
+  final bool showDarkMode;
+  final Function(String key, bool value) onToggleToolbarButton;
 
   const SettingsPage({
     super.key,
@@ -26,6 +34,13 @@ class SettingsPage extends StatefulWidget {
     required this.onSetCategoryColor,
     required this.simpleMode,
     required this.onToggleSimpleMode,
+    required this.showLoop,
+    required this.showSpeed,
+    required this.showShuffle,
+    required this.showAdd,
+    required this.showDelete,
+    required this.showDarkMode,
+    required this.onToggleToolbarButton,
   });
 
   @override
@@ -36,6 +51,12 @@ class _SettingsPageState extends State<SettingsPage> {
   late List<String> _localCategories;
   late Map<String, int> _localCategoryColors;
   late bool _simpleMode;
+  late bool _showLoop;
+  late bool _showSpeed;
+  late bool _showShuffle;
+  late bool _showAdd;
+  late bool _showDelete;
+  late bool _showDarkMode;
   BannerAd? _bannerAd;
   bool _isBannerAdLoaded = false;
 
@@ -45,6 +66,12 @@ class _SettingsPageState extends State<SettingsPage> {
     _localCategories = List.from(widget.categories);
     _localCategoryColors = Map.from(widget.categoryColors);
     _simpleMode = widget.simpleMode;
+    _showLoop = widget.showLoop;
+    _showSpeed = widget.showSpeed;
+    _showShuffle = widget.showShuffle;
+    _showAdd = widget.showAdd;
+    _showDelete = widget.showDelete;
+    _showDarkMode = widget.showDarkMode;
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
   }
 
@@ -70,6 +97,24 @@ class _SettingsPageState extends State<SettingsPage> {
   void dispose() {
     _bannerAd?.dispose();
     super.dispose();
+  }
+
+  Widget _toolbarToggleRow(IconData icon, String label, bool value, ValueChanged<bool> onChanged) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: Colors.blueGrey[600]),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label, style: const TextStyle(fontSize: 14))),
+          Switch(
+            value: value,
+            activeThumbColor: Colors.blueGrey[800],
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
   }
 
   void _showColorPicker(BuildContext context, String category) {
@@ -169,9 +214,19 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Column(
         children: [
+          if (_isBannerAdLoaded && _bannerAd != null)
+            Container(
+              alignment: Alignment.center,
+              width: double.infinity,
+              height: _bannerAd!.size.height.toDouble(),
+              child: AdWidget(ad: _bannerAd!),
+            ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
           // 🎛️ Simple Mode Section
           Card(
             elevation: 2,
@@ -526,50 +581,66 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
-// 🔒 Privacy Settings Section
+          // 🎛️ Toolbar Buttons Section
           Card(
             elevation: 2,
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.privacy_tip, color: Colors.blueGrey[800]),
+                      Icon(Icons.tune, color: Colors.blueGrey[800]),
                       const SizedBox(width: 12),
-                      Text(
-                        l10n.get('privacySettings'),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.get('toolbarButtons'),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              l10n.get('toolbarButtonsDesc'),
+                              style: const TextStyle(color: Colors.grey, fontSize: 13),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.get('privacySettingsDesc'),
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueGrey[800],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () {
-                        ConsentForm.showPrivacyOptionsForm((formError) {});
-                      },
-                      icon: const Icon(Icons.settings),
-                      label: Text(l10n.get('managePrivacy')),
-                    ),
-                  ),
+                  const SizedBox(height: 8),
+                  _toolbarToggleRow(Icons.loop, l10n.get('loop'), _showLoop, (v) {
+                    setState(() => _showLoop = v);
+                    widget.onToggleToolbarButton('loop', v);
+                  }),
+                  _toolbarToggleRow(Icons.speed, l10n.get('playbackSpeed'), _showSpeed, (v) {
+                    setState(() => _showSpeed = v);
+                    widget.onToggleToolbarButton('speed', v);
+                  }),
+                  _toolbarToggleRow(Icons.shuffle, l10n.get('shufflePlay'), _showShuffle, (v) {
+                    setState(() => _showShuffle = v);
+                    widget.onToggleToolbarButton('shuffle', v);
+                  }),
+                  _toolbarToggleRow(Icons.add, l10n.get('addSound'), _showAdd, (v) {
+                    setState(() => _showAdd = v);
+                    widget.onToggleToolbarButton('add', v);
+                  }),
+                  _toolbarToggleRow(Icons.delete, l10n.get('deleteMode'), _showDelete, (v) {
+                    setState(() => _showDelete = v);
+                    widget.onToggleToolbarButton('delete', v);
+                  }),
+                  _toolbarToggleRow(Icons.dark_mode, l10n.get('darkMode'), _showDarkMode, (v) {
+                    setState(() => _showDarkMode = v);
+                    widget.onToggleToolbarButton('darkmode', v);
+                  }),
                 ],
               ),
             ),
@@ -686,15 +757,111 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
 
           const SizedBox(height: 16),
-          Container(
-            alignment: Alignment.center,
-            width: double.infinity,
-            height: _bannerAd != null ? _bannerAd!.size.height.toDouble() : 60,
-            child: _isBannerAdLoaded && _bannerAd != null
-                ? AdWidget(ad: _bannerAd!)
-                : const SizedBox.shrink(),
+
+          // 🔒 Privacy Settings Section
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.privacy_tip, color: Colors.blueGrey[800]),
+                      const SizedBox(width: 12),
+                      Text(
+                        l10n.get('privacySettings'),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.get('privacySettingsDesc'),
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey[800],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () {
+                        ConsentForm.showPrivacyOptionsForm((formError) {});
+                      },
+                      icon: const Icon(Icons.settings),
+                      label: Text(l10n.get('managePrivacy')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
+
           const SizedBox(height: 16),
+
+          // ☕ Support / Ko-fi Section
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.favorite, color: Colors.pinkAccent[200]),
+                      const SizedBox(width: 12),
+                      Text(
+                        l10n.get('supportTitle'),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.get('supportDesc'),
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey[800],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () async {
+                        const intent = AndroidIntent(
+                          action: 'action_view',
+                          data: 'https://ko-fi.com/marcelso',
+                        );
+                        await intent.launch();
+                      },
+                      icon: const Icon(Icons.coffee),
+                      label: Text(l10n.get('donateButton')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+        ],
+      ),
+          ),
         ],
       ),
     );
