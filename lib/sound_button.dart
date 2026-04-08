@@ -230,7 +230,7 @@ class _SoundButtonState extends State<SoundButton> {
                         const SizedBox(height: 12),
                         TextField(
                           controller: nameController,
-                          maxLength: 30,
+                          maxLength: 50,
                           onChanged: (value) {
                             // Len ulož do lokálnej premennej, NEupdatuj _currentDisplayName
                             tempDisplayName = value;

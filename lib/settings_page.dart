@@ -8,6 +8,11 @@ import 'sound_data.dart';
 class SettingsPage extends StatefulWidget {
   final List<String> categories;
   final VoidCallback onResetSounds;
+  final VoidCallback onDeleteAllSounds;
+  final VoidCallback onExportSounds;
+  final Future<void> Function(BuildContext) onImportSounds;
+  final bool hapticFeedback;
+  final Function(bool) onToggleHapticFeedback;
   final Function(String category, bool deleteSounds) onDeleteCategory;
   final Function(String oldName, String newName) onRenameCategory;
   final Function(String category) onAddCategory;
@@ -15,6 +20,10 @@ class SettingsPage extends StatefulWidget {
   final Function(String category, Color color) onSetCategoryColor;
   final bool simpleMode;
   final Function(bool) onToggleSimpleMode;
+  final bool hideCategories;
+  final Function(bool) onToggleHideCategories;
+  final bool hidePlayback;
+  final Function(bool) onToggleHidePlayback;
   final bool showLoop;
   final bool showSpeed;
   final bool showShuffle;
@@ -27,6 +36,11 @@ class SettingsPage extends StatefulWidget {
     super.key,
     required this.categories,
     required this.onResetSounds,
+    required this.onDeleteAllSounds,
+    required this.onExportSounds,
+    required this.onImportSounds,
+    required this.hapticFeedback,
+    required this.onToggleHapticFeedback,
     required this.onDeleteCategory,
     required this.onRenameCategory,
     required this.onAddCategory,
@@ -34,6 +48,10 @@ class SettingsPage extends StatefulWidget {
     required this.onSetCategoryColor,
     required this.simpleMode,
     required this.onToggleSimpleMode,
+    required this.hideCategories,
+    required this.onToggleHideCategories,
+    required this.hidePlayback,
+    required this.onToggleHidePlayback,
     required this.showLoop,
     required this.showSpeed,
     required this.showShuffle,
@@ -51,6 +69,10 @@ class _SettingsPageState extends State<SettingsPage> {
   late List<String> _localCategories;
   late Map<String, int> _localCategoryColors;
   late bool _simpleMode;
+  bool _simpleModeExpanded = false;
+  late bool _hapticFeedback;
+  late bool _hideCategories;
+  late bool _hidePlayback;
   late bool _showLoop;
   late bool _showSpeed;
   late bool _showShuffle;
@@ -66,6 +88,9 @@ class _SettingsPageState extends State<SettingsPage> {
     _localCategories = List.from(widget.categories);
     _localCategoryColors = Map.from(widget.categoryColors);
     _simpleMode = widget.simpleMode;
+    _hapticFeedback = widget.hapticFeedback;
+    _hideCategories = widget.hideCategories;
+    _hidePlayback = widget.hidePlayback;
     _showLoop = widget.showLoop;
     _showSpeed = widget.showSpeed;
     _showShuffle = widget.showShuffle;
@@ -188,6 +213,30 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Widget _buildSubToggle({
+    required IconData icon,
+    required String title,
+    required bool value,
+    required Function(bool) onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          const SizedBox(width: 36),
+          Icon(icon, size: 20, color: Colors.blueGrey[400]),
+          const SizedBox(width: 12),
+          Expanded(child: Text(title, style: const TextStyle(fontSize: 14))),
+          Switch(
+            value: value,
+            activeThumbColor: Colors.blueGrey[800],
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -230,41 +279,82 @@ class _SettingsPageState extends State<SettingsPage> {
           // 🎛️ Simple Mode Section
           Card(
             elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Icon(Icons.touch_app, color: Colors.blueGrey[800]),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.get('simpleMode'),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.touch_app, color: Colors.blueGrey[800]),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.get('simpleMode'),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              l10n.get('simpleModeDesc'),
+                              style: const TextStyle(color: Colors.grey, fontSize: 13),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          l10n.get('simpleModeDesc'),
-                          style: const TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
+                      Switch(
+                        value: _simpleMode,
+                        activeThumbColor: Colors.blueGrey[800],
+                        onChanged: (value) {
+                          setState(() => _simpleMode = value);
+                          widget.onToggleSimpleMode(value);
+                        },
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          _simpleModeExpanded ? Icons.expand_less : Icons.expand_more,
+                          color: Colors.blueGrey[600],
                         ),
-                      ],
-                    ),
+                        onPressed: () => setState(() => _simpleModeExpanded = !_simpleModeExpanded),
+                      ),
+                    ],
                   ),
-                  Switch(
-                    value: _simpleMode,
-                    activeThumbColor: Colors.blueGrey[800],
-                    onChanged: (value) {
-                      setState(() => _simpleMode = value);
-                      widget.onToggleSimpleMode(value);
-                    },
-                  ),
-                ],
-              ),
+                ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  child: _simpleModeExpanded
+                      ? Column(
+                          children: [
+                            const Divider(height: 1),
+                            _buildSubToggle(
+                              icon: Icons.label_off_outlined,
+                              title: l10n.get('hideCategories'),
+                              value: _hideCategories,
+                              onChanged: (v) {
+                                setState(() => _hideCategories = v);
+                                widget.onToggleHideCategories(v);
+                              },
+                            ),
+                            _buildSubToggle(
+                              icon: Icons.speaker_notes_off_outlined,
+                              title: l10n.get('hidePlayback'),
+                              value: _hidePlayback,
+                              onChanged: (v) {
+                                setState(() => _hidePlayback = v);
+                                widget.onToggleHidePlayback(v);
+                              },
+                            ),
+                            const SizedBox(height: 4),
+                          ],
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
             ),
           ),
 
@@ -338,14 +428,60 @@ class _SettingsPageState extends State<SettingsPage> {
 
                         if (confirm == true) {
                           widget.onResetSounds();
-                          // Zatvor Settings page, aby sa po resete zobrazili aktuálne kategórie
-                          if (mounted) {
-                            Navigator.pop(context);
-                          }
+                          if (mounted) Navigator.pop(context);
                         }
                       },
                       icon: const Icon(Icons.refresh),
                       label: Text(l10n.get('resetToDefault')),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red[700],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            backgroundColor: Colors.white,
+                            title: Text(
+                              l10n.get('deleteAllConfirmTitle'),
+                              style: const TextStyle(color: Colors.black87),
+                            ),
+                            content: Text(
+                              l10n.get('deleteAllConfirmMessage'),
+                              style: const TextStyle(color: Colors.black87),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: Text(l10n.get('cancel'),
+                                    style: const TextStyle(color: Colors.black54)),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red[700],
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () => Navigator.pop(context, true),
+                                child: Text(l10n.get('deleteAll')),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (confirm == true) {
+                          widget.onDeleteAllSounds();
+                          if (mounted) Navigator.pop(context);
+                        }
+                      },
+                      icon: const Icon(Icons.delete_forever),
+                      label: Text(l10n.get('deleteAllSounds')),
                     ),
                   ),
                 ],
@@ -641,6 +777,94 @@ class _SettingsPageState extends State<SettingsPage> {
                     setState(() => _showDarkMode = v);
                     widget.onToggleToolbarButton('darkmode', v);
                   }),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // 💾 Export / Import Section
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.backup, color: Colors.blueGrey[800]),
+                      const SizedBox(width: 12),
+                      Text(
+                        l10n.get('backupRestore'),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.get('backupRestoreDesc'),
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey[800],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: widget.onExportSounds,
+                      icon: const Icon(Icons.upload),
+                      label: Text(l10n.get('exportSounds')),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey[700],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () => widget.onImportSounds(context),
+                      icon: const Icon(Icons.download),
+                      label: Text(l10n.get('importSounds')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // 📳 Haptic Feedback Section
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(Icons.vibration, color: Colors.blueGrey[800]),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      l10n.get('hapticFeedback'),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  Switch(
+                    value: _hapticFeedback,
+                    activeThumbColor: Colors.blueGrey[800],
+                    onChanged: (value) {
+                      setState(() => _hapticFeedback = value);
+                      widget.onToggleHapticFeedback(value);
+                    },
+                  ),
                 ],
               ),
             ),

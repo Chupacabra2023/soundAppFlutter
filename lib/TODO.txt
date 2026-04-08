@@ -1,12 +1,22 @@
 
 
-
+drag and drop
+lupa na volanieno
+lespei simple mod
 
 ddrag and drop ???
+ Malé, vysoká hodnota:                                                                                                                                                               - Haptic feedback — vibrácia pri stlačení tlačidla, jeden riadok kódu, profesionálny pocit                                                                                          - Recently played — špeciálna kategória "Naposledy hrané", automatická, bez extra práce od užívateľa
+  - Notification / lock screen controls — media notification s pause/stop keď appka beží na pozadí, štandardný Android feature
+  Stredné, vysoká hodnota:
+  - Export / Import zálohy — užívateľ si zálohuje svoje zvuky a nastavenia do jedného súboru, obnoví na novom telefóne. Veľmi praktické, iné soundboardy to nemajú všetky
 
 
 Interface: Enlarge the buttons on the control bar for easier use with a finger on a tablet.?
+
+
 Interface: Offer a guided tour upon first launch. The user may want to use the sounds you provide, but they may also want to use their own sounds without having to delete yours. Let them create their own categories, fill their list with their own MP3s, and explain that they can make multiple selections, choose colors, etc. It should also be possible to restart the entire system via a button in the settings.
+
 System: Quick switching between two audio devices. The goal is for a user to be able to test the music they’re about to play through headphones without the entire audience hearing it. When they toggle a button, the sound plays through the connected speaker. When they toggle the button the other way, the sound plays through the headphones.
+
 Statistics: Tracking which features are used could help you improve your app. Be mindful of legal requirements—in my country, for example, you must obtain user consent to do this, and by default, if the user hasn’t provided consent, the feature must be disabled.
 Advanced: A connection to Spotify, YouTube, etc. allows users to load tracks they have in their online accounts but not on their device (I'm not really sure how to set this up, and it requires a lot of maintenance work every time the music providers update their APIs).

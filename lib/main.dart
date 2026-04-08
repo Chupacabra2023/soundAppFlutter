@@ -4,7 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'sound_button.dart';
 import 'settings_page.dart';
 import 'add_soud_page.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show rootBundle, HapticFeedback;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'dart:convert';
@@ -14,6 +14,10 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app_localizations.dart';
 import 'language_picker_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:reorderable_grid_view/reorderable_grid_view.dart';
+import 'package:archive/archive.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -204,6 +208,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
   bool _isDeleteMode = false;
   bool _isResetting = false; // Loading state pre reset
   bool _simpleMode = false;
+  bool _hideCategories = false;
+  bool _hidePlayback = false;
+  bool _hapticFeedback = true;
   bool _showLoop = true;
   bool _showSpeed = true;
   bool _showShuffle = true;
@@ -274,6 +281,12 @@ class _SoundboardPageState extends State<SoundboardPage> {
           }
           final savedCategories = data['categories'];
           final savedCategoryColors = data['categoryColors'];
+          final prefs = await SharedPreferences.getInstance();
+          final hasCustomOrder = prefs.getBool('custom_sound_order') ?? false;
+          if (!hasCustomOrder) {
+            loadedList.sort((a, b) => (a['title'] ?? '').toString().toLowerCase()
+                .compareTo((b['title'] ?? '').toString().toLowerCase()));
+          }
           setState(() {
             sounds
               ..clear()
@@ -407,9 +420,21 @@ class _SoundboardPageState extends State<SoundboardPage> {
       }
 
       return true;
-    }).toList()
-      ..sort((a, b) => (a['title'] ?? '').toString().toLowerCase()
-          .compareTo((b['title'] ?? '').toString().toLowerCase()));
+    }).toList();
+  }
+
+  void _onReorder(int oldIndex, int newIndex) {
+    final movedSound = _cachedFilteredSounds[oldIndex];
+    final targetSound = _cachedFilteredSounds[newIndex];
+    final oldSoundsIndex = sounds.indexOf(movedSound);
+    final newSoundsIndex = sounds.indexOf(targetSound);
+    setState(() {
+      final item = sounds.removeAt(oldSoundsIndex);
+      sounds.insert(newSoundsIndex, item);
+    });
+    _updateFilteredSounds();
+    SharedPreferences.getInstance().then((prefs) => prefs.setBool('custom_sound_order', true));
+    saveSoundsToStorage();
   }
 
   @override
@@ -422,6 +447,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _simpleMode = prefs.getBool('simple_mode') ?? false;
+      _hideCategories = prefs.getBool('hide_categories') ?? false;
+      _hidePlayback = prefs.getBool('hide_playback') ?? false;
+      _hapticFeedback = prefs.getBool('haptic_feedback') ?? true;
       _showLoop = prefs.getBool('show_loop') ?? true;
       _showSpeed = prefs.getBool('show_speed') ?? true;
       _showShuffle = prefs.getBool('show_shuffle') ?? true;
@@ -481,11 +509,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
         await loadSoundsFromStorage();
         debugPrint('Loaded ${sounds.length} sounds from storage');
 
-        // If JSON is empty, initialize defaults
-        if (sounds.isEmpty) {
-          debugPrint('JSON is empty - initializing default sounds');
-          await _initializeSounds();
-        }
+        // Empty list is valid (user deleted all sounds intentionally)
       } else {
         debugPrint('JSON does not exist - initializing default sounds');
         await _initializeSounds();
@@ -707,6 +731,81 @@ class _SoundboardPageState extends State<SoundboardPage> {
     saveSoundsToStorage();
     _rebuildCategoriesList();
     _updateFilteredSounds();
+  }
+
+  Future<void> _deleteAllSounds() async {
+    setState(() {
+      sounds.clear();
+      _currentSound = null;
+    });
+    _player.stop();
+    _updateFilteredSounds();
+    await saveSoundsToStorage();
+  }
+
+  Future<void> _exportSounds() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final archive = Archive();
+
+      // Pridaj sounds.json
+      final jsonFile = File('${dir.path}/sounds.json');
+      if (await jsonFile.exists()) {
+        final jsonBytes = await jsonFile.readAsBytes();
+        archive.addFile(ArchiveFile('sounds.json', jsonBytes.length, jsonBytes));
+      }
+
+      // Pridaj všetky audio súbory
+      for (final sound in sounds) {
+        final name = sound['name'] as String?;
+        if (name == null) continue;
+        final audioFile = File('${dir.path}/$name');
+        if (await audioFile.exists()) {
+          final bytes = await audioFile.readAsBytes();
+          archive.addFile(ArchiveFile(name, bytes.length, bytes));
+        }
+      }
+
+      final zipBytes = ZipEncoder().encode(archive)!;
+      final tempDir = await getTemporaryDirectory();
+      final zipFile = File('${tempDir.path}/soundboard_backup.zip');
+      await zipFile.writeAsBytes(zipBytes);
+
+      await Share.shareXFiles(
+        [XFile(zipFile.path)],
+        subject: 'Soundboard backup',
+      );
+    } catch (e) {
+      debugPrint('Export error: $e');
+    }
+  }
+
+  Future<void> _importSounds(BuildContext context) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['zip'],
+      );
+      if (result == null || result.files.single.path == null) return;
+
+      final zipBytes = await File(result.files.single.path!).readAsBytes();
+      final archive = ZipDecoder().decodeBytes(zipBytes);
+      final dir = await getApplicationDocumentsDirectory();
+
+      for (final file in archive) {
+        if (file.isFile) {
+          final outFile = File('${dir.path}/${file.name}');
+          await outFile.writeAsBytes(file.content as List<int>);
+        }
+      }
+
+      await loadSoundsFromStorage();
+      _rebuildCategoriesList();
+      _updateFilteredSounds();
+      setState(() {});
+    } catch (e) {
+      debugPrint('Import error: $e');
+    }
   }
 
   // Funkcia na reset zvukov
@@ -1112,6 +1211,16 @@ class _SoundboardPageState extends State<SoundboardPage> {
                   builder: (context) => SettingsPage(
                     categories: _categories,
                     onResetSounds: _resetSounds,
+                    onDeleteAllSounds: _deleteAllSounds,
+                    onExportSounds: _exportSounds,
+                    onImportSounds: _importSounds,
+                    hapticFeedback: _hapticFeedback,
+                    onToggleHapticFeedback: (value) {
+                      setState(() => _hapticFeedback = value);
+                      SharedPreferences.getInstance().then(
+                        (prefs) => prefs.setBool('haptic_feedback', value),
+                      );
+                    },
                     onDeleteCategory: (cat, del) => _deleteCategory(cat, del),
                     onRenameCategory: _renameCategory,
                     onAddCategory: _addCategory,
@@ -1122,6 +1231,20 @@ class _SoundboardPageState extends State<SoundboardPage> {
                       setState(() => _simpleMode = value);
                       SharedPreferences.getInstance().then(
                         (prefs) => prefs.setBool('simple_mode', value),
+                      );
+                    },
+                    hideCategories: _hideCategories,
+                    onToggleHideCategories: (value) {
+                      setState(() => _hideCategories = value);
+                      SharedPreferences.getInstance().then(
+                        (prefs) => prefs.setBool('hide_categories', value),
+                      );
+                    },
+                    hidePlayback: _hidePlayback,
+                    onToggleHidePlayback: (value) {
+                      setState(() => _hidePlayback = value);
+                      SharedPreferences.getInstance().then(
+                        (prefs) => prefs.setBool('hide_playback', value),
                       );
                     },
                     showLoop: _showLoop,
@@ -1159,7 +1282,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
           Column(
             children: [
               // 🏷️ Category filter chips
-              SizedBox(
+              if (!(_simpleMode && _hideCategories)) SizedBox(
                 height: 40,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
@@ -1205,7 +1328,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
               const SizedBox(height: 8),
 
               // ⏳ Progress bar
-              Padding(
+              if (!(_simpleMode && _hidePlayback)) Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1314,20 +1437,17 @@ class _SoundboardPageState extends State<SoundboardPage> {
                       ],
                     ),
                   )
-                      : GridView.builder(
+                      : ReorderableGridView.builder(
+                    onReorder: _isDeleteMode ? (_, __) {} : _onReorder,
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: crossAxisCount,
                       crossAxisSpacing: 8,
                       mainAxisSpacing: 8,
                       childAspectRatio: 1.3,
                     ),
-                    addAutomaticKeepAlives: false, // ⚡ Dispose widgety mimo obrazovky
-                    addRepaintBoundaries: true, // ⚡ Automatické repaint boundaries
-                    cacheExtent: 100, // ⚡ Redukuj počet off-screen widgetov
                     itemCount: _cachedFilteredSounds.length,
                     itemBuilder: (context, index) {
                       final sound = _cachedFilteredSounds[index];
-                      // ⚡ addRepaintBoundaries: true robí to isté automaticky
                       return SoundButton(
                         key: ValueKey(sound['id']),
                         soundName: sound['name'],
@@ -1346,6 +1466,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         endMs: sound['endMs'] as int?,
                         volume: (sound['volume'] as num?)?.toDouble() ?? 1.0,
                         onPressed: () async {
+                          if (_hapticFeedback) HapticFeedback.lightImpact();
                           if (_isDeleteMode) {
                             await deleteSound(sound['id']);
                             setState(() {});
