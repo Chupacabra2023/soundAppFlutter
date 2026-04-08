@@ -9,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'sound_data.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+// import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app_localizations.dart';
 import 'language_picker_page.dart';
@@ -18,8 +18,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const _SplashApp());
-  await _initializeConsent();
-  await MobileAds.instance.initialize();
+  // await _initializeConsent();
+  // await MobileAds.instance.initialize();
   runApp(const MyApp());
 }
 
@@ -37,35 +37,35 @@ class _SplashApp extends StatelessWidget {
   }
 }
 
-Future<void> _initializeConsent() async {
-  final completer = Completer<void>();
-
-  final params = ConsentRequestParameters();
-  ConsentInformation.instance.requestConsentInfoUpdate(
-    params,
-    () async {
-      if (await ConsentInformation.instance.isConsentFormAvailable()) {
-        ConsentForm.loadAndShowConsentFormIfRequired((formError) {
-          if (formError != null) {
-            debugPrint('Consent form error: ${formError.message}');
-          }
-          if (!completer.isCompleted) completer.complete();
-        });
-      } else {
-        if (!completer.isCompleted) completer.complete();
-      }
-    },
-    (error) {
-      debugPrint('Consent info error: ${error.message}');
-      if (!completer.isCompleted) completer.complete();
-    },
-  );
-
-  return completer.future.timeout(
-    const Duration(seconds: 5),
-    onTimeout: () => debugPrint('Consent timeout - continuing without consent'),
-  );
-}
+// Future<void> _initializeConsent() async {
+//   final completer = Completer<void>();
+//
+//   final params = ConsentRequestParameters();
+//   ConsentInformation.instance.requestConsentInfoUpdate(
+//     params,
+//     () async {
+//       if (await ConsentInformation.instance.isConsentFormAvailable()) {
+//         ConsentForm.loadAndShowConsentFormIfRequired((formError) {
+//           if (formError != null) {
+//             debugPrint('Consent form error: ${formError.message}');
+//           }
+//           if (!completer.isCompleted) completer.complete();
+//         });
+//       } else {
+//         if (!completer.isCompleted) completer.complete();
+//       }
+//     },
+//     (error) {
+//       debugPrint('Consent info error: ${error.message}');
+//       if (!completer.isCompleted) completer.complete();
+//     },
+//   );
+//
+//   return completer.future.timeout(
+//     const Duration(seconds: 5),
+//     onTimeout: () => debugPrint('Consent timeout - continuing without consent'),
+//   );
+// }
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -199,6 +199,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
   double _playbackRate = 1.0;
   int _totalDurationMs = 0; // Celkové trvanie aktuálneho zvuku v ms
   String _searchQuery = '';
+  bool _isSearchOpen = false;
+  final TextEditingController _searchController = TextEditingController();
   bool _isDeleteMode = false;
   bool _isResetting = false; // Loading state pre reset
   bool _simpleMode = false;
@@ -928,6 +930,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
     _shuffleTimer?.cancel(); // ✅ Dispose shuffle timer
     _player.dispose();
     _progressNotifier.dispose(); // ✅ Dispose ValueNotifier
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -936,21 +939,67 @@ class _SoundboardPageState extends State<SoundboardPage> {
     final l10n = AppLocalizations.of(context);
     // ⚡ Cache screen width - používaj sizeOf namiesto .of aby sa nerebuildovalo pri klávesnici!
     final screenWidth = MediaQuery.sizeOf(context).width;
+    final isTablet = screenWidth >= 600;
     final crossAxisCount = _calculateCrossAxisCount(screenWidth);
     final visibleLeadingCount = [_showLoop, _showSpeed, _showShuffle, _showAdd].where((b) => b).length;
+    final iconButtonDensity = isTablet ? VisualDensity.comfortable : VisualDensity.compact;
+    final iconButtonWidth = isTablet ? 56.0 : 46.0;
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      appBar: AppBar(
+      appBar: _isSearchOpen
+          ? AppBar(
+              backgroundColor: Colors.blueGrey[900],
+              automaticallyImplyLeading: false,
+              titleSpacing: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () {
+                  setState(() {
+                    _isSearchOpen = false;
+                    _searchQuery = '';
+                    _searchController.clear();
+                  });
+                  _updateFilteredSounds();
+                },
+              ),
+              title: TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                cursorColor: Colors.white,
+                decoration: InputDecoration(
+                  hintText: l10n.get('searchSounds'),
+                  hintStyle: const TextStyle(color: Colors.white54),
+                  border: InputBorder.none,
+                ),
+                onChanged: (value) {
+                  _debounceTimer?.cancel();
+                  _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+                    if (mounted) {
+                      setState(() => _searchQuery = value);
+                      _updateFilteredSounds();
+                    }
+                  });
+                },
+              ),
+            )
+          : AppBar(
         backgroundColor: Colors.blueGrey[900],
         automaticallyImplyLeading: false,
         titleSpacing: 0,
         leading: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            IconButton(
+              visualDensity: iconButtonDensity,
+              icon: const Icon(Icons.search, color: Colors.white),
+              onPressed: () => setState(() => _isSearchOpen = true),
+              tooltip: l10n.get('searchSounds'),
+            ),
             if (_showLoop)
               IconButton(
-                visualDensity: VisualDensity.compact,
+                visualDensity: iconButtonDensity,
                 icon: Icon(
                   _isLooping ? Icons.loop : Icons.loop_outlined,
                   color: _isLooping ? Colors.lightBlueAccent : Colors.white,
@@ -981,7 +1030,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
               ),
             if (_showShuffle)
               IconButton(
-                visualDensity: VisualDensity.compact,
+                visualDensity: iconButtonDensity,
                 icon: Icon(
                   _isShufflePlay ? Icons.shuffle : Icons.shuffle_outlined,
                   color: _isShufflePlay ? Colors.greenAccent : Colors.white,
@@ -991,7 +1040,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
               ),
             if (_showAdd)
               IconButton(
-                visualDensity: VisualDensity.compact,
+                visualDensity: iconButtonDensity,
                 icon: const Icon(Icons.add, color: Colors.white),
                 tooltip: l10n.get('addSound'),
                 onPressed: () {
@@ -1024,12 +1073,12 @@ class _SoundboardPageState extends State<SoundboardPage> {
               ),
           ],
         ),
-        leadingWidth: visibleLeadingCount * 46.0,
+        leadingWidth: (visibleLeadingCount + 1) * iconButtonWidth,
         title: const SizedBox.shrink(),
         actions: [
           if (_showDelete)
             IconButton(
-              visualDensity: VisualDensity.compact,
+              visualDensity: iconButtonDensity,
               icon: Icon(
                 _isDeleteMode ? Icons.close : Icons.delete,
                 color: _isDeleteMode ? Colors.redAccent : Colors.white,
@@ -1043,7 +1092,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
             ),
           if (_showDarkMode)
             IconButton(
-              visualDensity: VisualDensity.compact,
+              visualDensity: iconButtonDensity,
               icon: Icon(
                 Theme.of(context).brightness == Brightness.dark
                     ? Icons.light_mode
@@ -1053,7 +1102,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
               onPressed: () => MyApp.toggleThemeStatic(context),
             ),
           IconButton(
-            visualDensity: VisualDensity.compact,
+            visualDensity: iconButtonDensity,
             icon: const Icon(Icons.settings, color: Colors.white),
             tooltip: l10n.get('settings'),
             onPressed: () {
@@ -1109,31 +1158,6 @@ class _SoundboardPageState extends State<SoundboardPage> {
         children: [
           Column(
             children: [
-              // 🔍 Search bar
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: l10n.get('searchSounds'),
-                    prefixIcon: const Icon(Icons.search),
-                    border: const OutlineInputBorder(),
-                  ),
-                  onChanged: (value) {
-                    // ⚡ Debouncing - zruš predchádzajúci timer
-                    _debounceTimer?.cancel();
-
-                    // Vytvor nový timer s 300ms oneskorením
-                    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-                      if (mounted) {
-                        _searchQuery = value;
-                        _updateFilteredSounds();
-                        setState(() {});
-                      }
-                    });
-                  },
-                ),
-              ),
-
               // 🏷️ Category filter chips
               SizedBox(
                 height: 40,

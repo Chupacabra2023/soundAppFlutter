@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+// import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
@@ -107,8 +107,8 @@ class _SoundButtonState extends State<SoundButton> {
     bool isDurationLoading = true;
     StateSetter? dialogSetState;
 
-    BannerAd? dialogBannerAd;
-    bool isBannerLoaded = false;
+    // BannerAd? dialogBannerAd;
+    // bool isBannerLoaded = false;
 
     showDialog(
       context: context,
@@ -148,25 +148,25 @@ class _SoundButtonState extends State<SoundButton> {
                   });
                 }
 
-                // Načítaj reklamu len raz pri prvom builde
-                if (dialogBannerAd == null) {
-                  dialogBannerAd = BannerAd(
-                    adUnitId: 'ca-app-pub-3948591512361475/4467483687',
-                    size: AdSize.banner,
-                    request: const AdRequest(),
-                    listener: BannerAdListener(
-                      onAdLoaded: (ad) {
-                        setModalState(() {
-                          isBannerLoaded = true;
-                        });
-                      },
-                      onAdFailedToLoad: (ad, error) {
-                        ad.dispose();
-                      },
-                    ),
-                  );
-                  dialogBannerAd!.load();
-                }
+                // // Načítaj reklamu len raz pri prvom builde
+                // if (dialogBannerAd == null) {
+                //   dialogBannerAd = BannerAd(
+                //     adUnitId: 'ca-app-pub-3948591512361475/4467483687',
+                //     size: AdSize.banner,
+                //     request: const AdRequest(),
+                //     listener: BannerAdListener(
+                //       onAdLoaded: (ad) {
+                //         setModalState(() {
+                //           isBannerLoaded = true;
+                //         });
+                //       },
+                //       onAdFailedToLoad: (ad, error) {
+                //         ad.dispose();
+                //       },
+                //     ),
+                //   );
+                //   dialogBannerAd!.load();
+                // }
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -439,19 +439,19 @@ class _SoundButtonState extends State<SoundButton> {
                         ),
 
                         const SizedBox(height: 16),
-                        if (isBannerLoaded && dialogBannerAd != null)
-                          Container(
-                            alignment: Alignment.center,
-                            width: dialogBannerAd!.size.width.toDouble(),
-                            height: dialogBannerAd!.size.height.toDouble(),
-                            child: AdWidget(ad: dialogBannerAd!),
-                          )
-                        else
-                          Container(
-                            alignment: Alignment.center,
-                            height: 50,
-                            child: const CircularProgressIndicator(),
-                          ),
+                        // if (isBannerLoaded && dialogBannerAd != null)
+                        //   Container(
+                        //     alignment: Alignment.center,
+                        //     width: dialogBannerAd!.size.width.toDouble(),
+                        //     height: dialogBannerAd!.size.height.toDouble(),
+                        //     child: AdWidget(ad: dialogBannerAd!),
+                        //   )
+                        // else
+                        //   Container(
+                        //     alignment: Alignment.center,
+                        //     height: 50,
+                        //     child: const CircularProgressIndicator(),
+                        //   ),
                       ],
                     ),
                   ),
@@ -466,7 +466,7 @@ class _SoundButtonState extends State<SoundButton> {
       },
     ).then((_) {
       // Uvoľni reklamu keď sa dialóg zatvorí
-      dialogBannerAd?.dispose();
+      // dialogBannerAd?.dispose();
     });
   }
 

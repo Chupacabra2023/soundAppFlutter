@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import 'app_localizations.dart';
 import 'main.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+// import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'sound_data.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -57,8 +57,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool _showAdd;
   late bool _showDelete;
   late bool _showDarkMode;
-  BannerAd? _bannerAd;
-  bool _isBannerAdLoaded = false;
+  // BannerAd? _bannerAd;
+  // bool _isBannerAdLoaded = false;
 
   @override
   void initState() {
@@ -72,30 +72,30 @@ class _SettingsPageState extends State<SettingsPage> {
     _showAdd = widget.showAdd;
     _showDelete = widget.showDelete;
     _showDarkMode = widget.showDarkMode;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
+    // WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
   }
 
-  Future<void> _loadBannerAd() async {
-    final width = MediaQuery.of(context).size.width.truncate();
-    final adSize = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
-    if (adSize == null || !mounted) return;
-    _bannerAd = BannerAd(
-      adUnitId: 'ca-app-pub-3948591512361475/7117189914',
-      size: adSize,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          if (mounted) setState(() => _isBannerAdLoaded = true);
-        },
-        onAdFailedToLoad: (ad, error) => ad.dispose(),
-      ),
-    );
-    _bannerAd?.load();
-  }
+  // Future<void> _loadBannerAd() async {
+  //   final width = MediaQuery.of(context).size.width.truncate();
+  //   final adSize = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
+  //   if (adSize == null || !mounted) return;
+  //   _bannerAd = BannerAd(
+  //     adUnitId: 'ca-app-pub-3948591512361475/7117189914',
+  //     size: adSize,
+  //     request: const AdRequest(),
+  //     listener: BannerAdListener(
+  //       onAdLoaded: (ad) {
+  //         if (mounted) setState(() => _isBannerAdLoaded = true);
+  //       },
+  //       onAdFailedToLoad: (ad, error) => ad.dispose(),
+  //     ),
+  //   );
+  //   _bannerAd?.load();
+  // }
 
   @override
   void dispose() {
-    _bannerAd?.dispose();
+    // _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -216,13 +216,13 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: Column(
         children: [
-          if (_isBannerAdLoaded && _bannerAd != null)
-            Container(
-              alignment: Alignment.center,
-              width: double.infinity,
-              height: _bannerAd!.size.height.toDouble(),
-              child: AdWidget(ad: _bannerAd!),
-            ),
+          // if (_isBannerAdLoaded && _bannerAd != null)
+          //   Container(
+          //     alignment: Alignment.center,
+          //     width: double.infinity,
+          //     height: _bannerAd!.size.height.toDouble(),
+          //     child: AdWidget(ad: _bannerAd!),
+          //   ),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(16),
@@ -794,7 +794,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       onPressed: () {
-                        ConsentForm.showPrivacyOptionsForm((formError) {});
+                        // ConsentForm.showPrivacyOptionsForm((formError) {});
                       },
                       icon: const Icon(Icons.settings),
                       label: Text(l10n.get('managePrivacy')),
