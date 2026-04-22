@@ -6,7 +6,7 @@ import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'dart:async';
 import 'dart:io';
-// import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'sound_data.dart';
 import 'app_localizations.dart';
 
@@ -53,13 +53,13 @@ class _AddSoundPageState extends State<AddSoundPage> {
   int _trimEndMs = 0;
   int _fileDurationMs = 0;
 
-  // BannerAd? _bannerAd;
-  // bool _isBannerAdLoaded = false;
+  BannerAd? _bannerAd;
+  bool _isBannerAdLoaded = false;
 
   @override
   void initState() {
     super.initState();
-    // WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
     _player.onPlayerStateChanged.listen((state) {
       if (mounted) {
         setState(() => _isPlaying = state == PlayerState.playing);
@@ -67,25 +67,25 @@ class _AddSoundPageState extends State<AddSoundPage> {
     });
   }
 
-  // void _loadBannerAd() {
-  //   _bannerAd = BannerAd(
-  //     adUnitId: 'ca-app-pub-3948591512361475/7085908168',
-  //     size: AdSize.mediumRectangle,
-  //     request: const AdRequest(),
-  //     listener: BannerAdListener(
-  //       onAdLoaded: (ad) {
-  //         if (mounted) setState(() => _isBannerAdLoaded = true);
-  //       },
-  //       onAdFailedToLoad: (ad, error) => ad.dispose(),
-  //     ),
-  //   );
-  //   _bannerAd?.load();
-  // }
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-3948591512361475/7085908168',
+      size: AdSize.mediumRectangle,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (mounted) setState(() => _isBannerAdLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) => ad.dispose(),
+      ),
+    );
+    _bannerAd?.load();
+  }
 
   @override
   void dispose() {
     _trimTimer?.cancel();
-    // _bannerAd?.dispose();
+    _bannerAd?.dispose();
     _record.dispose();
     _player.dispose();
     for (final f in _selectedFiles) {
@@ -657,13 +657,13 @@ class _AddSoundPageState extends State<AddSoundPage> {
             ),
           ),
 
-          // if (_isBannerAdLoaded && _bannerAd != null)
-          //   Container(
-          //     alignment: Alignment.center,
-          //     width: _bannerAd!.size.width.toDouble(),
-          //     height: _bannerAd!.size.height.toDouble(),
-          //     child: AdWidget(ad: _bannerAd!),
-          //   ),
+          if (_isBannerAdLoaded && _bannerAd != null)
+            Container(
+              alignment: Alignment.center,
+              width: _bannerAd!.size.width.toDouble(),
+              height: _bannerAd!.size.height.toDouble(),
+              child: AdWidget(ad: _bannerAd!),
+            ),
         ],
       ),
     );

@@ -4,26 +4,26 @@ import 'package:audioplayers/audioplayers.dart';
 import 'sound_button.dart';
 import 'settings_page.dart';
 import 'add_soud_page.dart';
-import 'package:flutter/services.dart' show rootBundle, HapticFeedback;
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:vibration/vibration.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'sound_data.dart';
-// import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app_localizations.dart';
 import 'language_picker_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:reorderable_grid_view/reorderable_grid_view.dart';
 import 'package:archive/archive.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const _SplashApp());
-  // await _initializeConsent();
-  // await MobileAds.instance.initialize();
+  await _initializeConsent();
+  await MobileAds.instance.initialize();
   runApp(const MyApp());
 }
 
@@ -41,35 +41,35 @@ class _SplashApp extends StatelessWidget {
   }
 }
 
-// Future<void> _initializeConsent() async {
-//   final completer = Completer<void>();
-//
-//   final params = ConsentRequestParameters();
-//   ConsentInformation.instance.requestConsentInfoUpdate(
-//     params,
-//     () async {
-//       if (await ConsentInformation.instance.isConsentFormAvailable()) {
-//         ConsentForm.loadAndShowConsentFormIfRequired((formError) {
-//           if (formError != null) {
-//             debugPrint('Consent form error: ${formError.message}');
-//           }
-//           if (!completer.isCompleted) completer.complete();
-//         });
-//       } else {
-//         if (!completer.isCompleted) completer.complete();
-//       }
-//     },
-//     (error) {
-//       debugPrint('Consent info error: ${error.message}');
-//       if (!completer.isCompleted) completer.complete();
-//     },
-//   );
-//
-//   return completer.future.timeout(
-//     const Duration(seconds: 5),
-//     onTimeout: () => debugPrint('Consent timeout - continuing without consent'),
-//   );
-// }
+Future<void> _initializeConsent() async {
+  final completer = Completer<void>();
+
+  final params = ConsentRequestParameters();
+  ConsentInformation.instance.requestConsentInfoUpdate(
+    params,
+    () async {
+      if (await ConsentInformation.instance.isConsentFormAvailable()) {
+        ConsentForm.loadAndShowConsentFormIfRequired((formError) {
+          if (formError != null) {
+            debugPrint('Consent form error: ${formError.message}');
+          }
+          if (!completer.isCompleted) completer.complete();
+        });
+      } else {
+        if (!completer.isCompleted) completer.complete();
+      }
+    },
+    (error) {
+      debugPrint('Consent info error: ${error.message}');
+      if (!completer.isCompleted) completer.complete();
+    },
+  );
+
+  return completer.future.timeout(
+    const Duration(seconds: 5),
+    onTimeout: () => debugPrint('Consent timeout - continuing without consent'),
+  );
+}
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -197,6 +197,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
   Timer? _progressTimer;
   Timer? _debounceTimer; // Debounce timer pre search
   Timer? _shuffleTimer; // Timer pre shuffle play
+  Timer? _fadeTimer;
   String? _currentSound;
   bool _isLooping = false;
   bool _isShufflePlay = false; // Shuffle play mode
@@ -211,12 +212,17 @@ class _SoundboardPageState extends State<SoundboardPage> {
   bool _hideCategories = false;
   bool _hidePlayback = false;
   bool _hapticFeedback = true;
+  bool _showSearch = true;
   bool _showLoop = true;
   bool _showSpeed = true;
   bool _showShuffle = true;
   bool _showAdd = true;
   bool _showDelete = true;
   bool _showDarkMode = true;
+  bool _showMasterVolume = true;
+  bool _hideVolume = false;
+  double _masterVolume = 1.0;
+  double _volumeBeforeMute = 1.0;
   final Set<String> _selectedCategories = {'everything'};
   List<String> _categories = ['everything'];
   List<String> _customCategories = []; // kategórie uložené nezávisle od zvukov
@@ -450,12 +456,17 @@ class _SoundboardPageState extends State<SoundboardPage> {
       _hideCategories = prefs.getBool('hide_categories') ?? false;
       _hidePlayback = prefs.getBool('hide_playback') ?? false;
       _hapticFeedback = prefs.getBool('haptic_feedback') ?? true;
+      _showSearch = prefs.getBool('show_search') ?? true;
       _showLoop = prefs.getBool('show_loop') ?? true;
       _showSpeed = prefs.getBool('show_speed') ?? true;
       _showShuffle = prefs.getBool('show_shuffle') ?? true;
       _showAdd = prefs.getBool('show_add') ?? true;
       _showDelete = prefs.getBool('show_delete') ?? true;
       _showDarkMode = prefs.getBool('show_darkmode') ?? true;
+      _showMasterVolume = prefs.getBool('show_master_volume') ?? true;
+      _hideVolume = prefs.getBool('hide_volume') ?? false;
+      _masterVolume = prefs.getDouble('master_volume') ?? 1.0;
+      if (_masterVolume <= 0) _masterVolume = 1.0;
     });
     await _checkAndLoadSounds();
     _rebuildCategoriesList();
@@ -535,8 +546,10 @@ class _SoundboardPageState extends State<SoundboardPage> {
       final String name = soundData['name'] as String;
       final int startMs = soundData['startMs'] ?? 0;
       final int? endMs = soundData['endMs'] as int?;
-      final double volume = (soundData['volume'] as num?)?.toDouble() ?? 1.0;
-      await _player.setVolume(volume);
+      final double volume = ((soundData['volume'] as num?)?.toDouble() ?? 1.0) * _masterVolume;
+      final int fadeInMs = (soundData['fadeInMs'] as num?)?.toInt() ?? 0;
+      final int fadeOutMs = (soundData['fadeOutMs'] as num?)?.toInt() ?? 0;
+      await _player.setVolume(fadeInMs > 0 ? 0.0 : volume);
 
       final dir = await getApplicationDocumentsDirectory();
       final filePath = '${dir.path}/$name';
@@ -567,16 +580,28 @@ class _SoundboardPageState extends State<SoundboardPage> {
         await _player.seek(Duration(milliseconds: startMs));
       }
 
+      if (fadeInMs > 0) {
+        _fadeTimer?.cancel();
+        final fadeStart = DateTime.now();
+        _fadeTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+          if (!mounted) { timer.cancel(); return; }
+          final elapsed = DateTime.now().difference(fadeStart).inMilliseconds;
+          final progress = (elapsed / fadeInMs).clamp(0.0, 1.0);
+          _player.setVolume(progress * volume);
+          if (progress >= 1.0) timer.cancel();
+        });
+      }
+
       final duration = await _player.getDuration();
       if (duration != null && duration.inMilliseconds > 0) {
         _totalDurationMs = duration.inMilliseconds;
-        _startFakeProgress(duration.inMilliseconds, startMs: startMs, endMs: endMs);
+        _startFakeProgress(duration.inMilliseconds, startMs: startMs, endMs: endMs, fadeOutMs: fadeOutMs, volume: volume);
       } else {
         _player.onDurationChanged.first.then((d) {
           final length = d.inMilliseconds;
           if (length > 0) {
             _totalDurationMs = length;
-            _startFakeProgress(length, startMs: startMs, endMs: endMs);
+            _startFakeProgress(length, startMs: startMs, endMs: endMs, fadeOutMs: fadeOutMs, volume: volume);
           }
         });
       }
@@ -592,7 +617,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
   }
 
   // startFrom = 0.0..1.0 within trim window (nie celý súbor)
-  void _startFakeProgress(int totalMs, {double startFrom = 0.0, int startMs = 0, int? endMs}) {
+  void _startFakeProgress(int totalMs, {double startFrom = 0.0, int startMs = 0, int? endMs, int fadeOutMs = 0, double volume = 1.0}) {
     _progressTimer?.cancel();
 
     final int effectiveEndMs = (endMs ?? totalMs).clamp(0, totalMs);
@@ -604,9 +629,10 @@ class _SoundboardPageState extends State<SoundboardPage> {
       return;
     }
 
-    // Progress 0.0..1.0 = od startMs po endMs (trim okno)
     final int adjustedWindowMs = (trimWindowMs / _playbackRate).toInt();
     final int alreadyElapsedMs = (startFrom * adjustedWindowMs).toInt();
+    final int fadeOutStartMs = adjustedWindowMs - (fadeOutMs / _playbackRate).toInt();
+    bool fadeOutStarted = false;
 
     final start = DateTime.now();
 
@@ -620,6 +646,20 @@ class _SoundboardPageState extends State<SoundboardPage> {
       final p = (elapsed / adjustedWindowMs).clamp(0.0, 1.0);
 
       _progressNotifier.value = p;
+
+      // Fade out pred koncom
+      if (fadeOutMs > 0 && elapsed >= fadeOutStartMs && !fadeOutStarted) {
+        fadeOutStarted = true;
+        _fadeTimer?.cancel();
+        final fadeStart = DateTime.now();
+        _fadeTimer = Timer.periodic(const Duration(milliseconds: 16), (ft) {
+          if (!mounted) { ft.cancel(); return; }
+          final fe = DateTime.now().difference(fadeStart).inMilliseconds;
+          final fp = (fe / (fadeOutMs / _playbackRate)).clamp(0.0, 1.0);
+          _player.setVolume(volume * (1.0 - fp));
+          if (fp >= 1.0) ft.cancel();
+        });
+      }
 
       if (p >= 1.0) {
         timer.cancel();
@@ -658,11 +698,12 @@ class _SoundboardPageState extends State<SoundboardPage> {
     final int startMs = soundData['startMs'] ?? 0;
     final int? endMs = soundData['endMs'] as int?;
     final int effectiveEndMs = endMs ?? _totalDurationMs;
+    final int fadeOutMs = (soundData['fadeOutMs'] as num?)?.toInt() ?? 0;
+    final double volume = (soundData['volume'] as num?)?.toDouble() ?? 1.0;
 
-    // Mapuj position (0.0..1.0 trim okna) na skutočné ms
     final int seekMs = (startMs + position * (effectiveEndMs - startMs)).toInt().clamp(startMs, effectiveEndMs);
     _player.seek(Duration(milliseconds: seekMs));
-    _startFakeProgress(_totalDurationMs, startFrom: position, startMs: startMs, endMs: endMs);
+    _startFakeProgress(_totalDurationMs, startFrom: position, startMs: startMs, endMs: endMs, fadeOutMs: fadeOutMs, volume: volume);
   }
 
 
@@ -695,20 +736,16 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
   void _stopSound() {
     _progressTimer?.cancel();
-    _progressNotifier.value = 0.0; // ✅ Resetuj progress mimo setState
+    _fadeTimer?.cancel();
+    _progressNotifier.value = 0.0;
     _totalDurationMs = 0;
     _player.stop().then((_) {
-      if (mounted) {
-        setState(() {
-          _currentSound = null;
-          _isLooping = false;
-        });
-      }
+      if (mounted) setState(() { _currentSound = null; _isLooping = false; });
     });
   }
   // Funkcia na aktualizáciu zvuku
   void _updateSound(String soundId, String newTitle, List<String> newCategories,
-      Color newColor, int newStartMs, int? newEndMs, double newVolume) {
+      Color newColor, int newStartMs, int? newEndMs, double newVolume, int newFadeInMs, int newFadeOutMs) {
     setState(() {
       final soundIndex = sounds.indexWhere((s) => s['id'] == soundId);
       if (soundIndex != -1) {
@@ -720,6 +757,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
         sounds[soundIndex]['startMs'] = newStartMs;
         sounds[soundIndex]['endMs'] = newEndMs;
         sounds[soundIndex]['volume'] = newVolume;
+        sounds[soundIndex]['fadeInMs'] = newFadeInMs;
+        sounds[soundIndex]['fadeOutMs'] = newFadeOutMs;
       }
       // Ensure any category assigned via sound button dialog is persisted
       for (final cat in newCategories) {
@@ -767,16 +806,25 @@ class _SoundboardPageState extends State<SoundboardPage> {
       }
 
       final zipBytes = ZipEncoder().encode(archive)!;
-      final tempDir = await getTemporaryDirectory();
-      final zipFile = File('${tempDir.path}/soundboard_backup.zip');
+
+      final selectedDir = await FilePicker.platform.getDirectoryPath();
+      if (selectedDir == null) return;
+
+      final zipFile = File('$selectedDir/soundboard_backup.zip');
       await zipFile.writeAsBytes(zipBytes);
 
-      await Share.shareXFiles(
-        [XFile(zipFile.path)],
-        subject: 'Soundboard backup',
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✅ Uložené: ${zipFile.path}')),
+        );
+      }
     } catch (e) {
       debugPrint('Export error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Export zlyhal: $e')),
+        );
+      }
     }
   }
 
@@ -895,6 +943,20 @@ class _SoundboardPageState extends State<SoundboardPage> {
           sound['categories'] = categories;
         }
       });
+
+      final orphaned = sounds.where((s) {
+        final cats = List<String>.from(s['categories'] ?? []);
+        return cats.isEmpty || cats.every((c) => c == 'everything');
+      }).length;
+      if (orphaned > 0 && mounted) {
+        final l10n = AppLocalizations.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$orphaned ${l10n.get('soundsOnlyInEverything')}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
 
     _customCategories.remove(category);
@@ -988,13 +1050,12 @@ class _SoundboardPageState extends State<SoundboardPage> {
     return Color(int.parse(hex, radix: 16));
   }
 
-  // Responzívny výpočet počtu stĺpcov podľa šírky obrazovky
   int _calculateCrossAxisCount(double width) {
-    if (width < 600) return 3;       // Mobil portrait (malá obrazovka)
-    if (width < 900) return 4;       // Mobil landscape / malý tablet
-    if (width < 1200) return 5;      // Tablet
-    if (width < 1600) return 6;      // Veľký tablet
-    return 7;                        // Desktop / veľmi veľká obrazovka
+    if (width < 600) return 3;
+    if (width < 900) return 4;
+    if (width < 1200) return 5;
+    if (width < 1600) return 6;
+    return 7;
   }
 
   void _toggleShufflePlay() {
@@ -1025,8 +1086,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
   @override
   void dispose() {
     _progressTimer?.cancel();
-    _debounceTimer?.cancel(); // ✅ Dispose debounce timer
-    _shuffleTimer?.cancel(); // ✅ Dispose shuffle timer
+    _debounceTimer?.cancel();
+    _shuffleTimer?.cancel();
+    _fadeTimer?.cancel();
     _player.dispose();
     _progressNotifier.dispose(); // ✅ Dispose ValueNotifier
     _searchController.dispose();
@@ -1036,69 +1098,49 @@ class _SoundboardPageState extends State<SoundboardPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // ⚡ Cache screen width - používaj sizeOf namiesto .of aby sa nerebuildovalo pri klávesnici!
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final isTablet = screenWidth >= 600;
+    // ⚡ Cache screen size - používaj sizeOf namiesto .of aby sa nerebuildovalo pri klávesnici!
+    final screenSize = MediaQuery.sizeOf(context);
+    final screenWidth = screenSize.width;
+    final screenHeight = screenSize.height;
+    final isLandscape = screenWidth > screenHeight;
     final crossAxisCount = _calculateCrossAxisCount(screenWidth);
-    final visibleLeadingCount = [_showLoop, _showSpeed, _showShuffle, _showAdd].where((b) => b).length;
-    final iconButtonDensity = isTablet ? VisualDensity.comfortable : VisualDensity.compact;
-    final iconButtonWidth = isTablet ? 56.0 : 46.0;
+    final visibleLeadingCount = [_showSearch, _showLoop, _showSpeed, _showShuffle, _showAdd].where((b) => b).length;
+    final iconButtonDensity = isLandscape ? VisualDensity.comfortable : VisualDensity.compact;
+    final iconSize = isLandscape ? 36.0 : 24.0;
+    final appBarHeight = isLandscape ? 80.0 : kToolbarHeight;
+    final iconButtonWidth = isLandscape ? 76.0 : 46.0;
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      appBar: _isSearchOpen
-          ? AppBar(
-              backgroundColor: Colors.blueGrey[900],
-              automaticallyImplyLeading: false,
-              titleSpacing: 0,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
+      appBar: AppBar(
+        backgroundColor: Colors.blueGrey[900],
+        automaticallyImplyLeading: false,
+        titleSpacing: 0,
+        toolbarHeight: appBarHeight,
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_showSearch)
+              IconButton(
+                visualDensity: iconButtonDensity,
+                iconSize: iconSize,
+                icon: Icon(Icons.search, color: _isSearchOpen ? Colors.lightBlueAccent : Colors.white),
                 onPressed: () {
                   setState(() {
-                    _isSearchOpen = false;
-                    _searchQuery = '';
-                    _searchController.clear();
-                  });
-                  _updateFilteredSounds();
-                },
-              ),
-              title: TextField(
-                controller: _searchController,
-                autofocus: true,
-                style: const TextStyle(color: Colors.white),
-                cursorColor: Colors.white,
-                decoration: InputDecoration(
-                  hintText: l10n.get('searchSounds'),
-                  hintStyle: const TextStyle(color: Colors.white54),
-                  border: InputBorder.none,
-                ),
-                onChanged: (value) {
-                  _debounceTimer?.cancel();
-                  _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-                    if (mounted) {
-                      setState(() => _searchQuery = value);
+                    _isSearchOpen = !_isSearchOpen;
+                    if (!_isSearchOpen) {
+                      _searchQuery = '';
+                      _searchController.clear();
                       _updateFilteredSounds();
                     }
                   });
                 },
+                tooltip: l10n.get('searchSounds'),
               ),
-            )
-          : AppBar(
-        backgroundColor: Colors.blueGrey[900],
-        automaticallyImplyLeading: false,
-        titleSpacing: 0,
-        leading: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              visualDensity: iconButtonDensity,
-              icon: const Icon(Icons.search, color: Colors.white),
-              onPressed: () => setState(() => _isSearchOpen = true),
-              tooltip: l10n.get('searchSounds'),
-            ),
             if (_showLoop)
               IconButton(
                 visualDensity: iconButtonDensity,
+                iconSize: iconSize,
                 icon: Icon(
                   _isLooping ? Icons.loop : Icons.loop_outlined,
                   color: _isLooping ? Colors.lightBlueAccent : Colors.white,
@@ -1108,6 +1150,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
               ),
             if (_showSpeed)
               PopupMenuButton<double>(
+                iconSize: iconSize,
                 icon: const Icon(Icons.speed, color: Colors.white),
                 tooltip: l10n.get('playbackSpeed'),
                 color: Colors.blueGrey[800],
@@ -1130,6 +1173,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
             if (_showShuffle)
               IconButton(
                 visualDensity: iconButtonDensity,
+                iconSize: iconSize,
                 icon: Icon(
                   _isShufflePlay ? Icons.shuffle : Icons.shuffle_outlined,
                   color: _isShufflePlay ? Colors.greenAccent : Colors.white,
@@ -1140,6 +1184,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
             if (_showAdd)
               IconButton(
                 visualDensity: iconButtonDensity,
+                iconSize: iconSize,
                 icon: const Icon(Icons.add, color: Colors.white),
                 tooltip: l10n.get('addSound'),
                 onPressed: () {
@@ -1178,6 +1223,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
           if (_showDelete)
             IconButton(
               visualDensity: iconButtonDensity,
+              iconSize: iconSize,
               icon: Icon(
                 _isDeleteMode ? Icons.close : Icons.delete,
                 color: _isDeleteMode ? Colors.redAccent : Colors.white,
@@ -1192,6 +1238,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
           if (_showDarkMode)
             IconButton(
               visualDensity: iconButtonDensity,
+              iconSize: iconSize,
               icon: Icon(
                 Theme.of(context).brightness == Brightness.dark
                     ? Icons.light_mode
@@ -1202,6 +1249,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
             ),
           IconButton(
             visualDensity: iconButtonDensity,
+            iconSize: iconSize,
             icon: const Icon(Icons.settings, color: Colors.white),
             tooltip: l10n.get('settings'),
             onPressed: () {
@@ -1247,21 +1295,32 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         (prefs) => prefs.setBool('hide_playback', value),
                       );
                     },
+                    showSearch: _showSearch,
                     showLoop: _showLoop,
                     showSpeed: _showSpeed,
                     showShuffle: _showShuffle,
                     showAdd: _showAdd,
                     showDelete: _showDelete,
                     showDarkMode: _showDarkMode,
+                    showMasterVolume: _showMasterVolume,
+                    hideVolume: _hideVolume,
+                    onToggleHideVolume: (value) {
+                      setState(() => _hideVolume = value);
+                      SharedPreferences.getInstance().then(
+                        (prefs) => prefs.setBool('hide_volume', value),
+                      );
+                    },
                     onToggleToolbarButton: (key, value) {
                       setState(() {
                         switch (key) {
+                          case 'search': _showSearch = value;
                           case 'loop': _showLoop = value;
                           case 'speed': _showSpeed = value;
                           case 'shuffle': _showShuffle = value;
                           case 'add': _showAdd = value;
                           case 'delete': _showDelete = value;
                           case 'darkmode': _showDarkMode = value;
+                          case 'master_volume': _showMasterVolume = value;
                         }
                       });
                       SharedPreferences.getInstance().then(
@@ -1282,7 +1341,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
           Column(
             children: [
               // 🏷️ Category filter chips
-              if (!(_simpleMode && _hideCategories)) SizedBox(
+              if (!(_simpleMode && _hideCategories)) Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: SizedBox(
                 height: 40,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
@@ -1321,6 +1382,44 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         _updateFilteredSounds();
                       },
                     );
+                  },
+                ),
+              ),
+              ),
+
+              // 🔍 Search field below categories
+              if (_isSearchOpen) Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                child: TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: l10n.get('searchSounds'),
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              setState(() {
+                                _searchQuery = '';
+                                _searchController.clear();
+                              });
+                              _updateFilteredSounds();
+                            },
+                          )
+                        : null,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    isDense: true,
+                  ),
+                  onChanged: (value) {
+                    _debounceTimer?.cancel();
+                    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+                      if (mounted) {
+                        setState(() => _searchQuery = value);
+                        _updateFilteredSounds();
+                      }
+                    });
                   },
                 ),
               ),
@@ -1409,7 +1508,93 @@ class _SoundboardPageState extends State<SoundboardPage> {
                 ),
               ),
 
-              // Filter info
+              // 🔊 Master volume slider
+              if (_showMasterVolume && !(_simpleMode && _hideVolume))
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          if (_masterVolume > 0) {
+                            setState(() {
+                              _volumeBeforeMute = _masterVolume;
+                              _masterVolume = 0;
+                            });
+                            _player.setVolume(0);
+                          } else {
+                            setState(() {
+                              _masterVolume = _volumeBeforeMute > 0 ? _volumeBeforeMute : 1.0;
+                            });
+                            if (_currentSound != null) {
+                              final soundData = sounds.firstWhere(
+                                (s) => s['id'] == _currentSound,
+                                orElse: () => <String, dynamic>{},
+                              );
+                              final base = (soundData['volume'] as num?)?.toDouble() ?? 1.0;
+                              _player.setVolume(base * _masterVolume);
+                            }
+                            SharedPreferences.getInstance().then(
+                              (prefs) => prefs.setDouble('master_volume', _masterVolume),
+                            );
+                          }
+                        },
+                        child: Icon(
+                          _masterVolume == 0
+                              ? Icons.volume_off
+                              : _masterVolume < 0.5
+                                  ? Icons.volume_down
+                                  : Icons.volume_up,
+                          size: 18,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Expanded(
+                        child: SliderTheme(
+                          data: SliderThemeData(
+                            trackHeight: 4,
+                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                            overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                            activeTrackColor: Colors.blueGrey,
+                            inactiveTrackColor: Colors.grey.shade300,
+                            thumbColor: Colors.blueGrey,
+                            overlayColor: Colors.blueGrey.withAlpha(40),
+                          ),
+                          child: Slider(
+                            value: _masterVolume,
+                            min: 0.0,
+                            max: 1.0,
+                            onChanged: (v) {
+                              setState(() => _masterVolume = v);
+                              if (_currentSound != null) {
+                                final soundData = sounds.firstWhere(
+                                  (s) => s['id'] == _currentSound,
+                                  orElse: () => <String, dynamic>{},
+                                );
+                                final base = (soundData['volume'] as num?)?.toDouble() ?? 1.0;
+                                _player.setVolume(base * v);
+                              }
+                              if (v > 0) {
+                                SharedPreferences.getInstance().then(
+                                  (prefs) => prefs.setDouble('master_volume', v),
+                                );
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 36,
+                        child: Text(
+                          '${(_masterVolume * 100).round()}%',
+                          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               const SizedBox(height: 8),
 
               // 🟩 Grid tlačidiel
@@ -1465,8 +1650,14 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         startMs: sound['startMs'] ?? 0,
                         endMs: sound['endMs'] as int?,
                         volume: (sound['volume'] as num?)?.toDouble() ?? 1.0,
+                        fadeInMs: (sound['fadeInMs'] as num?)?.toInt() ?? 0,
+                        fadeOutMs: (sound['fadeOutMs'] as num?)?.toInt() ?? 0,
                         onPressed: () async {
-                          if (_hapticFeedback) HapticFeedback.lightImpact();
+                          if (_hapticFeedback) {
+                            try {
+                              await Vibration.vibrate(duration: 50);
+                            } catch (_) {}
+                          }
                           if (_isDeleteMode) {
                             await deleteSound(sound['id']);
                             setState(() {});
@@ -1478,8 +1669,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
                             }
                           }
                         },
-                        onUpdate: (newTitle, newCategories, newColor, newStartMs, newEndMs, newVolume) {
-                          _updateSound(sound['id'], newTitle, newCategories, newColor, newStartMs, newEndMs, newVolume);
+                        onUpdate: (newTitle, newCategories, newColor, newStartMs, newEndMs, newVolume, newFadeInMs, newFadeOutMs) {
+                          _updateSound(sound['id'], newTitle, newCategories, newColor, newStartMs, newEndMs, newVolume, newFadeInMs, newFadeOutMs);
                         },
                         onToggleFavorite: () =>
                             _toggleFavorite(sound['id']),

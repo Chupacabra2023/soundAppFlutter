@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import 'app_localizations.dart';
 import 'main.dart';
-// import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'sound_data.dart';
 
 class SettingsPage extends StatefulWidget {
   final List<String> categories;
   final VoidCallback onResetSounds;
   final VoidCallback onDeleteAllSounds;
-  final VoidCallback onExportSounds;
+  final Future<void> Function() onExportSounds;
   final Future<void> Function(BuildContext) onImportSounds;
   final bool hapticFeedback;
   final Function(bool) onToggleHapticFeedback;
@@ -24,12 +24,16 @@ class SettingsPage extends StatefulWidget {
   final Function(bool) onToggleHideCategories;
   final bool hidePlayback;
   final Function(bool) onToggleHidePlayback;
+  final bool showSearch;
   final bool showLoop;
   final bool showSpeed;
   final bool showShuffle;
   final bool showAdd;
   final bool showDelete;
   final bool showDarkMode;
+  final bool showMasterVolume;
+  final bool hideVolume;
+  final Function(bool) onToggleHideVolume;
   final Function(String key, bool value) onToggleToolbarButton;
 
   const SettingsPage({
@@ -52,12 +56,16 @@ class SettingsPage extends StatefulWidget {
     required this.onToggleHideCategories,
     required this.hidePlayback,
     required this.onToggleHidePlayback,
+    required this.showSearch,
     required this.showLoop,
     required this.showSpeed,
     required this.showShuffle,
     required this.showAdd,
     required this.showDelete,
     required this.showDarkMode,
+    required this.showMasterVolume,
+    required this.hideVolume,
+    required this.onToggleHideVolume,
     required this.onToggleToolbarButton,
   });
 
@@ -73,14 +81,19 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool _hapticFeedback;
   late bool _hideCategories;
   late bool _hidePlayback;
+  late bool _showSearch;
   late bool _showLoop;
   late bool _showSpeed;
   late bool _showShuffle;
   late bool _showAdd;
   late bool _showDelete;
   late bool _showDarkMode;
-  // BannerAd? _bannerAd;
-  // bool _isBannerAdLoaded = false;
+  late bool _showMasterVolume;
+  late bool _hideVolume;
+  bool _isExporting = false;
+  bool _isImporting = false;
+  BannerAd? _bannerAd;
+  bool _isBannerAdLoaded = false;
 
   @override
   void initState() {
@@ -91,36 +104,39 @@ class _SettingsPageState extends State<SettingsPage> {
     _hapticFeedback = widget.hapticFeedback;
     _hideCategories = widget.hideCategories;
     _hidePlayback = widget.hidePlayback;
+    _showSearch = widget.showSearch;
     _showLoop = widget.showLoop;
     _showSpeed = widget.showSpeed;
     _showShuffle = widget.showShuffle;
     _showAdd = widget.showAdd;
     _showDelete = widget.showDelete;
     _showDarkMode = widget.showDarkMode;
-    // WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
+    _showMasterVolume = widget.showMasterVolume;
+    _hideVolume = widget.hideVolume;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
   }
 
-  // Future<void> _loadBannerAd() async {
-  //   final width = MediaQuery.of(context).size.width.truncate();
-  //   final adSize = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
-  //   if (adSize == null || !mounted) return;
-  //   _bannerAd = BannerAd(
-  //     adUnitId: 'ca-app-pub-3948591512361475/7117189914',
-  //     size: adSize,
-  //     request: const AdRequest(),
-  //     listener: BannerAdListener(
-  //       onAdLoaded: (ad) {
-  //         if (mounted) setState(() => _isBannerAdLoaded = true);
-  //       },
-  //       onAdFailedToLoad: (ad, error) => ad.dispose(),
-  //     ),
-  //   );
-  //   _bannerAd?.load();
-  // }
+  Future<void> _loadBannerAd() async {
+    final width = MediaQuery.of(context).size.width.truncate();
+    final adSize = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
+    if (adSize == null || !mounted) return;
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-3948591512361475/7117189914',
+      size: adSize,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (mounted) setState(() => _isBannerAdLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) => ad.dispose(),
+      ),
+    );
+    _bannerAd?.load();
+  }
 
   @override
   void dispose() {
-    // _bannerAd?.dispose();
+    _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -265,13 +281,13 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: Column(
         children: [
-          // if (_isBannerAdLoaded && _bannerAd != null)
-          //   Container(
-          //     alignment: Alignment.center,
-          //     width: double.infinity,
-          //     height: _bannerAd!.size.height.toDouble(),
-          //     child: AdWidget(ad: _bannerAd!),
-          //   ),
+          if (_isBannerAdLoaded && _bannerAd != null)
+            Container(
+              alignment: Alignment.center,
+              width: double.infinity,
+              height: _bannerAd!.size.height.toDouble(),
+              child: AdWidget(ad: _bannerAd!),
+            ),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(16),
@@ -347,6 +363,15 @@ class _SettingsPageState extends State<SettingsPage> {
                               onChanged: (v) {
                                 setState(() => _hidePlayback = v);
                                 widget.onToggleHidePlayback(v);
+                              },
+                            ),
+                            _buildSubToggle(
+                              icon: Icons.volume_off_outlined,
+                              title: 'Skryť volume slider',
+                              value: _hideVolume,
+                              onChanged: (v) {
+                                setState(() => _hideVolume = v);
+                                widget.onToggleHideVolume(v);
                               },
                             ),
                             const SizedBox(height: 4),
@@ -753,6 +778,10 @@ class _SettingsPageState extends State<SettingsPage> {
                     ],
                   ),
                   const SizedBox(height: 8),
+                  _toolbarToggleRow(Icons.search, l10n.get('searchSounds'), _showSearch, (v) {
+                    setState(() => _showSearch = v);
+                    widget.onToggleToolbarButton('search', v);
+                  }),
                   _toolbarToggleRow(Icons.loop, l10n.get('loop'), _showLoop, (v) {
                     setState(() => _showLoop = v);
                     widget.onToggleToolbarButton('loop', v);
@@ -776,6 +805,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   _toolbarToggleRow(Icons.dark_mode, l10n.get('darkMode'), _showDarkMode, (v) {
                     setState(() => _showDarkMode = v);
                     widget.onToggleToolbarButton('darkmode', v);
+                  }),
+                  _toolbarToggleRow(Icons.volume_up, 'Master volume slider', _showMasterVolume, (v) {
+                    setState(() => _showMasterVolume = v);
+                    widget.onToggleToolbarButton('master_volume', v);
                   }),
                 ],
               ),
@@ -816,8 +849,20 @@ class _SettingsPageState extends State<SettingsPage> {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      onPressed: widget.onExportSounds,
-                      icon: const Icon(Icons.upload),
+                      onPressed: _isExporting || _isImporting ? null : () async {
+                        setState(() => _isExporting = true);
+                        try {
+                          await widget.onExportSounds();
+                        } finally {
+                          if (mounted) setState(() => _isExporting = false);
+                        }
+                      },
+                      icon: _isExporting
+                          ? const SizedBox(
+                              width: 18, height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.upload),
                       label: Text(l10n.get('exportSounds')),
                     ),
                   ),
@@ -830,8 +875,20 @@ class _SettingsPageState extends State<SettingsPage> {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      onPressed: () => widget.onImportSounds(context),
-                      icon: const Icon(Icons.download),
+                      onPressed: _isImporting || _isExporting ? null : () async {
+                        setState(() => _isImporting = true);
+                        try {
+                          await widget.onImportSounds(context);
+                        } finally {
+                          if (mounted) setState(() => _isImporting = false);
+                        }
+                      },
+                      icon: _isImporting
+                          ? const SizedBox(
+                              width: 18, height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.download),
                       label: Text(l10n.get('importSounds')),
                     ),
                   ),

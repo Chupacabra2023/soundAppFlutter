@@ -2,6 +2,9 @@
     <!-- Permissions for audio recording -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
+    <!-- Permission for haptic feedback / vibration -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
+
     <!-- Permission for AdMob (required for Android 13+) -->
     <uses-permission android:name="com.google.android.gms.permission.AD_ID"/>
 
