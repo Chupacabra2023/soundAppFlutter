@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
+import 'package:id3tag/id3tag.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -182,30 +183,40 @@ class _AddSoundPageState extends State<AddSoundPage> {
     }
   }
 
+  Future<String> _readId3Title(String path) async {
+    try {
+      final parser = ID3TagReader(File(path));
+      final tag = await parser.readTag();
+      final title = tag.title?.trim() ?? '';
+      return title.isNotEmpty ? title : _cleanName(path.split('/').last.split('\\').last);
+    } catch (_) {
+      return _cleanName(path.split('/').last.split('\\').last);
+    }
+  }
+
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.audio,
       allowMultiple: true,
     );
     if (result != null && result.files.isNotEmpty) {
+      for (final f in _selectedFiles) f.dispose();
       setState(() {
-        for (final f in _selectedFiles) f.dispose();
         _selectedFiles.clear();
         _fileDurationMs = 0;
         _trimStartMs = 0;
         _trimEndMs = 0;
-
-        for (final file in result.files) {
-          if (file.path != null) {
-            _selectedFiles.add(_FileEntry(
-              path: file.path!,
-              name: _cleanName(file.name),
-            ));
-          }
-        }
       });
 
-      // Načítaj duration prvého súboru pre trim slider
+      for (final file in result.files) {
+        if (file.path != null) {
+          final name = await _readId3Title(file.path!);
+          setState(() {
+            _selectedFiles.add(_FileEntry(path: file.path!, name: name));
+          });
+        }
+      }
+
       if (_selectedFiles.isNotEmpty) {
         await _fetchDuration(_selectedFiles.first.path);
       }

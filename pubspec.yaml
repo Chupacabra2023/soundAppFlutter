@@ -27,6 +27,7 @@ dependencies:
   archive: ^3.6.1
   share_plus: ^10.1.4
   vibration: ^2.0.0
+  id3tag: ^0.2.0
 
 dev_dependencies:
   flutter_test:

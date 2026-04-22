@@ -674,103 +674,101 @@ class _SoundSettingsSheetState extends State<_SoundSettingsSheet> {
 
                     const SizedBox(height: 20),
 
-                    // Fade In
+                    // Fade In / Fade Out
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Checkbox(
-                          value: _fadeInMs > 0,
-                          activeColor: Colors.blueGrey[700],
-                          onChanged: (checked) {
-                            setState(() {
-                              if (checked == true) {
-                                final secs = double.tryParse(
-                                        _fadeInController.text) ??
-                                    1.0;
-                                _fadeInMs =
-                                    (secs * 1000).toInt().clamp(100, 10000);
-                              } else {
-                                _fadeInMs = 0;
-                              }
-                            });
-                          },
-                        ),
-                        Text('Fade In',
-                            style: Theme.of(context).textTheme.titleMedium),
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 80,
-                          child: TextField(
-                            controller: _fadeInController,
-                            enabled: _fadeInMs > 0,
-                            keyboardType:
-                                const TextInputType.numberWithOptions(
-                                    decimal: true),
-                            decoration: const InputDecoration(
-                              suffixText: 's',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 8),
-                              isDense: true,
-                            ),
-                            onChanged: (val) {
-                              final secs = double.tryParse(val);
-                              if (secs != null && secs > 0) {
-                                setState(() => _fadeInMs =
-                                    (secs * 1000).toInt().clamp(100, 10000));
-                              }
-                            },
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Switch(
+                                    value: _fadeInMs > 0,
+                                    activeColor: Colors.blueGrey[700],
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    onChanged: (checked) {
+                                      setState(() {
+                                        if (checked) {
+                                          final secs = double.tryParse(_fadeInController.text) ?? 1.0;
+                                          _fadeInMs = (secs * 1000).toInt().clamp(100, 10000);
+                                        } else {
+                                          _fadeInMs = 0;
+                                        }
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text('Fade In', style: Theme.of(context).textTheme.titleMedium),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: _fadeInController,
+                                enabled: _fadeInMs > 0,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: const InputDecoration(
+                                  suffixText: 's',
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  isDense: true,
+                                ),
+                                onChanged: (val) {
+                                  final secs = double.tryParse(val);
+                                  if (secs != null && secs > 0) {
+                                    setState(() => _fadeInMs = (secs * 1000).toInt().clamp(100, 10000));
+                                  }
+                                },
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 4),
-
-                    // Fade Out
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _fadeOutMs > 0,
-                          activeColor: Colors.blueGrey[700],
-                          onChanged: (checked) {
-                            setState(() {
-                              if (checked == true) {
-                                final secs = double.tryParse(
-                                        _fadeOutController.text) ??
-                                    1.0;
-                                _fadeOutMs =
-                                    (secs * 1000).toInt().clamp(100, 10000);
-                              } else {
-                                _fadeOutMs = 0;
-                              }
-                            });
-                          },
-                        ),
-                        Text('Fade Out',
-                            style: Theme.of(context).textTheme.titleMedium),
                         const SizedBox(width: 12),
-                        SizedBox(
-                          width: 80,
-                          child: TextField(
-                            controller: _fadeOutController,
-                            enabled: _fadeOutMs > 0,
-                            keyboardType:
-                                const TextInputType.numberWithOptions(
-                                    decimal: true),
-                            decoration: const InputDecoration(
-                              suffixText: 's',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 8),
-                              isDense: true,
-                            ),
-                            onChanged: (val) {
-                              final secs = double.tryParse(val);
-                              if (secs != null && secs > 0) {
-                                setState(() => _fadeOutMs =
-                                    (secs * 1000).toInt().clamp(100, 10000));
-                              }
-                            },
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Switch(
+                                    value: _fadeOutMs > 0,
+                                    activeColor: Colors.blueGrey[700],
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    onChanged: (checked) {
+                                      setState(() {
+                                        if (checked) {
+                                          final secs = double.tryParse(_fadeOutController.text) ?? 1.0;
+                                          _fadeOutMs = (secs * 1000).toInt().clamp(100, 10000);
+                                        } else {
+                                          _fadeOutMs = 0;
+                                        }
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text('Fade Out', style: Theme.of(context).textTheme.titleMedium),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: _fadeOutController,
+                                enabled: _fadeOutMs > 0,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: const InputDecoration(
+                                  suffixText: 's',
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  isDense: true,
+                                ),
+                                onChanged: (val) {
+                                  final secs = double.tryParse(val);
+                                  if (secs != null && secs > 0) {
+                                    setState(() => _fadeOutMs = (secs * 1000).toInt().clamp(100, 10000));
+                                  }
+                                },
+                              ),
+                            ],
                           ),
                         ),
                       ],
