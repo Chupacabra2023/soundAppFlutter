@@ -10,7 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'sound_data.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+// import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app_localizations.dart';
 import 'language_picker_page.dart';
@@ -21,9 +21,8 @@ import 'package:file_picker/file_picker.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const _SplashApp());
-  await _initializeConsent();
-  await MobileAds.instance.initialize();
+  // await _initializeConsent();
+  // await MobileAds.instance.initialize();
   runApp(const MyApp());
 }
 
@@ -41,35 +40,31 @@ class _SplashApp extends StatelessWidget {
   }
 }
 
-Future<void> _initializeConsent() async {
-  final completer = Completer<void>();
-
-  final params = ConsentRequestParameters();
-  ConsentInformation.instance.requestConsentInfoUpdate(
-    params,
-    () async {
-      if (await ConsentInformation.instance.isConsentFormAvailable()) {
-        ConsentForm.loadAndShowConsentFormIfRequired((formError) {
-          if (formError != null) {
-            debugPrint('Consent form error: ${formError.message}');
-          }
-          if (!completer.isCompleted) completer.complete();
-        });
-      } else {
-        if (!completer.isCompleted) completer.complete();
-      }
-    },
-    (error) {
-      debugPrint('Consent info error: ${error.message}');
-      if (!completer.isCompleted) completer.complete();
-    },
-  );
-
-  return completer.future.timeout(
-    const Duration(seconds: 5),
-    onTimeout: () => debugPrint('Consent timeout - continuing without consent'),
-  );
-}
+// Future<void> _initializeConsent() async {
+//   final completer = Completer<void>();
+//   final params = ConsentRequestParameters();
+//   ConsentInformation.instance.requestConsentInfoUpdate(
+//     params,
+//     () async {
+//       if (await ConsentInformation.instance.isConsentFormAvailable()) {
+//         ConsentForm.loadAndShowConsentFormIfRequired((formError) {
+//           if (formError != null) debugPrint('Consent form error: ${formError.message}');
+//           if (!completer.isCompleted) completer.complete();
+//         });
+//       } else {
+//         if (!completer.isCompleted) completer.complete();
+//       }
+//     },
+//     (error) {
+//       debugPrint('Consent info error: ${error.message}');
+//       if (!completer.isCompleted) completer.complete();
+//     },
+//   );
+//   return completer.future.timeout(
+//     const Duration(seconds: 5),
+//     onTimeout: () => debugPrint('Consent timeout - continuing without consent'),
+//   );
+// }
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -208,9 +203,10 @@ class _SoundboardPageState extends State<SoundboardPage> {
   final TextEditingController _searchController = TextEditingController();
   bool _isDeleteMode = false;
   bool _isResetting = false; // Loading state pre reset
-  bool _simpleMode = false;
   bool _hideCategories = false;
   bool _hidePlayback = false;
+  bool _hideFavorite = false;
+  bool _hideSettings = false;
   bool _hapticFeedback = true;
   bool _showSearch = true;
   bool _showLoop = true;
@@ -220,8 +216,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
   bool _showDelete = true;
   bool _showDarkMode = true;
   bool _showMasterVolume = true;
-  bool _hideVolume = false;
   double _masterVolume = 1.0;
+  int _globalFadeInMs = 0;
+  int _globalFadeOutMs = 0;
   double _volumeBeforeMute = 1.0;
   final Set<String> _selectedCategories = {'everything'};
   List<String> _categories = ['everything'];
@@ -452,9 +449,10 @@ class _SoundboardPageState extends State<SoundboardPage> {
   Future<void> _initializeApp() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _simpleMode = prefs.getBool('simple_mode') ?? false;
       _hideCategories = prefs.getBool('hide_categories') ?? false;
       _hidePlayback = prefs.getBool('hide_playback') ?? false;
+      _hideFavorite = prefs.getBool('hide_favorite') ?? false;
+      _hideSettings = prefs.getBool('hide_settings_btn') ?? false;
       _hapticFeedback = prefs.getBool('haptic_feedback') ?? true;
       _showSearch = prefs.getBool('show_search') ?? true;
       _showLoop = prefs.getBool('show_loop') ?? true;
@@ -464,9 +462,10 @@ class _SoundboardPageState extends State<SoundboardPage> {
       _showDelete = prefs.getBool('show_delete') ?? true;
       _showDarkMode = prefs.getBool('show_darkmode') ?? true;
       _showMasterVolume = prefs.getBool('show_master_volume') ?? true;
-      _hideVolume = prefs.getBool('hide_volume') ?? false;
       _masterVolume = prefs.getDouble('master_volume') ?? 1.0;
       if (_masterVolume <= 0) _masterVolume = 1.0;
+      _globalFadeInMs = prefs.getInt('global_fade_in_ms') ?? 0;
+      _globalFadeOutMs = prefs.getInt('global_fade_out_ms') ?? 0;
     });
     await _checkAndLoadSounds();
     _rebuildCategoriesList();
@@ -546,9 +545,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
       final String name = soundData['name'] as String;
       final int startMs = soundData['startMs'] ?? 0;
       final int? endMs = soundData['endMs'] as int?;
-      final double volume = ((soundData['volume'] as num?)?.toDouble() ?? 1.0) * _masterVolume;
-      final int fadeInMs = (soundData['fadeInMs'] as num?)?.toInt() ?? 0;
-      final int fadeOutMs = (soundData['fadeOutMs'] as num?)?.toInt() ?? 0;
+      final double volume = ((soundData['volume'] as num?)?.toDouble() ?? 1.0) * _masterVolume * _masterVolume;
+      final int fadeInMs = _globalFadeInMs;
+      final int fadeOutMs = _globalFadeOutMs;
       await _player.setVolume(fadeInMs > 0 ? 0.0 : volume);
 
       final dir = await getApplicationDocumentsDirectory();
@@ -698,7 +697,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
     final int startMs = soundData['startMs'] ?? 0;
     final int? endMs = soundData['endMs'] as int?;
     final int effectiveEndMs = endMs ?? _totalDurationMs;
-    final int fadeOutMs = (soundData['fadeOutMs'] as num?)?.toInt() ?? 0;
+    final int fadeOutMs = _globalFadeOutMs;
     final double volume = (soundData['volume'] as num?)?.toDouble() ?? 1.0;
 
     final int seekMs = (startMs + position * (effectiveEndMs - startMs)).toInt().clamp(startMs, effectiveEndMs);
@@ -734,18 +733,39 @@ class _SoundboardPageState extends State<SoundboardPage> {
     }
   }
 
-  void _stopSound() {
+  void _stopSound({bool withFade = false}) {
     _progressTimer?.cancel();
     _fadeTimer?.cancel();
     _progressNotifier.value = 0.0;
     _totalDurationMs = 0;
-    _player.stop().then((_) {
-      if (mounted) setState(() { _currentSound = null; _isLooping = false; });
-    });
+
+    if (withFade && _globalFadeOutMs > 0 && _currentSound != null) {
+      final soundData = sounds.firstWhere(
+        (s) => s['id'] == _currentSound,
+        orElse: () => <String, dynamic>{},
+      );
+      final double volume = ((soundData['volume'] as num?)?.toDouble() ?? 1.0) * _masterVolume * _masterVolume;
+      setState(() { _currentSound = null; _isLooping = false; });
+      final fadeStart = DateTime.now();
+      _fadeTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+        if (!mounted) { timer.cancel(); return; }
+        final elapsed = DateTime.now().difference(fadeStart).inMilliseconds;
+        final progress = (elapsed / _globalFadeOutMs).clamp(0.0, 1.0);
+        _player.setVolume(volume * (1.0 - progress));
+        if (progress >= 1.0) {
+          timer.cancel();
+          _player.stop();
+        }
+      });
+    } else {
+      _player.stop().then((_) {
+        if (mounted) setState(() { _currentSound = null; _isLooping = false; });
+      });
+    }
   }
   // Funkcia na aktualizáciu zvuku
   void _updateSound(String soundId, String newTitle, List<String> newCategories,
-      Color newColor, int newStartMs, int? newEndMs, double newVolume, int newFadeInMs, int newFadeOutMs) {
+      Color newColor, int newStartMs, int? newEndMs, double newVolume) {
     setState(() {
       final soundIndex = sounds.indexWhere((s) => s['id'] == soundId);
       if (soundIndex != -1) {
@@ -757,8 +777,6 @@ class _SoundboardPageState extends State<SoundboardPage> {
         sounds[soundIndex]['startMs'] = newStartMs;
         sounds[soundIndex]['endMs'] = newEndMs;
         sounds[soundIndex]['volume'] = newVolume;
-        sounds[soundIndex]['fadeInMs'] = newFadeInMs;
-        sounds[soundIndex]['fadeOutMs'] = newFadeOutMs;
       }
       // Ensure any category assigned via sound button dialog is persisted
       for (final cat in newCategories) {
@@ -1104,6 +1122,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
     final screenHeight = screenSize.height;
     final isLandscape = screenWidth > screenHeight;
     final crossAxisCount = _calculateCrossAxisCount(screenWidth);
+    final isTablet = screenWidth >= 600;
     final visibleLeadingCount = [_showSearch, _showLoop, _showSpeed, _showShuffle, _showAdd].where((b) => b).length;
     final iconButtonDensity = isLandscape ? VisualDensity.comfortable : VisualDensity.compact;
     final iconSize = isLandscape ? 36.0 : 24.0;
@@ -1120,7 +1139,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
         leading: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (_showSearch)
+            if (_showSearch) ...[
               IconButton(
                 visualDensity: iconButtonDensity,
                 iconSize: iconSize,
@@ -1137,7 +1156,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
                 },
                 tooltip: l10n.get('searchSounds'),
               ),
-            if (_showLoop)
+              if (isTablet) const SizedBox(width: 35),
+            ],
+            if (_showLoop) ...[
               IconButton(
                 visualDensity: iconButtonDensity,
                 iconSize: iconSize,
@@ -1148,7 +1169,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
                 onPressed: _toggleLoop,
                 tooltip: l10n.get('loop'),
               ),
-            if (_showSpeed)
+              if (isTablet) const SizedBox(width: 35),
+            ],
+            if (_showSpeed) ...[
               PopupMenuButton<double>(
                 iconSize: iconSize,
                 icon: const Icon(Icons.speed, color: Colors.white),
@@ -1170,7 +1193,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
                   ),
                 ],
               ),
-            if (_showShuffle)
+              if (isTablet) const SizedBox(width: 35),
+            ],
+            if (_showShuffle) ...[
               IconButton(
                 visualDensity: iconButtonDensity,
                 iconSize: iconSize,
@@ -1181,7 +1206,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
                 onPressed: _toggleShufflePlay,
                 tooltip: l10n.get('shufflePlay'),
               ),
-            if (_showAdd)
+              if (isTablet) const SizedBox(width: 35),
+            ],
+            if (_showAdd) ...[
               IconButton(
                 visualDensity: iconButtonDensity,
                 iconSize: iconSize,
@@ -1215,9 +1242,11 @@ class _SoundboardPageState extends State<SoundboardPage> {
                   );
                 },
               ),
+              if (isTablet) const SizedBox(width: 35),
+            ],
           ],
         ),
-        leadingWidth: (visibleLeadingCount + 1) * iconButtonWidth,
+        leadingWidth: (visibleLeadingCount + 1) * iconButtonWidth + visibleLeadingCount * (isTablet ? 35.0 : 0.0),
         title: const SizedBox.shrink(),
         actions: [
           if (_showDelete)
@@ -1274,13 +1303,6 @@ class _SoundboardPageState extends State<SoundboardPage> {
                     onAddCategory: _addCategory,
                     categoryColors: _categoryColors,
                     onSetCategoryColor: _setCategoryColor,
-                    simpleMode: _simpleMode,
-                    onToggleSimpleMode: (value) {
-                      setState(() => _simpleMode = value);
-                      SharedPreferences.getInstance().then(
-                        (prefs) => prefs.setBool('simple_mode', value),
-                      );
-                    },
                     hideCategories: _hideCategories,
                     onToggleHideCategories: (value) {
                       setState(() => _hideCategories = value);
@@ -1295,6 +1317,20 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         (prefs) => prefs.setBool('hide_playback', value),
                       );
                     },
+                    hideFavorite: _hideFavorite,
+                    onToggleHideFavorite: (value) {
+                      setState(() => _hideFavorite = value);
+                      SharedPreferences.getInstance().then(
+                        (prefs) => prefs.setBool('hide_favorite', value),
+                      );
+                    },
+                    hideSettingsBtn: _hideSettings,
+                    onToggleHideSettingsBtn: (value) {
+                      setState(() => _hideSettings = value);
+                      SharedPreferences.getInstance().then(
+                        (prefs) => prefs.setBool('hide_settings_btn', value),
+                      );
+                    },
                     showSearch: _showSearch,
                     showLoop: _showLoop,
                     showSpeed: _showSpeed,
@@ -1303,13 +1339,6 @@ class _SoundboardPageState extends State<SoundboardPage> {
                     showDelete: _showDelete,
                     showDarkMode: _showDarkMode,
                     showMasterVolume: _showMasterVolume,
-                    hideVolume: _hideVolume,
-                    onToggleHideVolume: (value) {
-                      setState(() => _hideVolume = value);
-                      SharedPreferences.getInstance().then(
-                        (prefs) => prefs.setBool('hide_volume', value),
-                      );
-                    },
                     onToggleToolbarButton: (key, value) {
                       setState(() {
                         switch (key) {
@@ -1327,6 +1356,20 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         (prefs) => prefs.setBool('show_$key', value),
                       );
                     },
+                    globalFadeInMs: _globalFadeInMs,
+                    globalFadeOutMs: _globalFadeOutMs,
+                    onSetGlobalFadeIn: (value) {
+                      setState(() => _globalFadeInMs = value);
+                      SharedPreferences.getInstance().then(
+                        (prefs) => prefs.setInt('global_fade_in_ms', value),
+                      );
+                    },
+                    onSetGlobalFadeOut: (value) {
+                      setState(() => _globalFadeOutMs = value);
+                      SharedPreferences.getInstance().then(
+                        (prefs) => prefs.setInt('global_fade_out_ms', value),
+                      );
+                    },
                   ),
                 ),
               );
@@ -1341,10 +1384,10 @@ class _SoundboardPageState extends State<SoundboardPage> {
           Column(
             children: [
               // 🏷️ Category filter chips
-              if (!(_simpleMode && _hideCategories)) Padding(
+              if (!_hideCategories) Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: SizedBox(
-                height: 40,
+                height: isTablet ? 52.0 : 40.0,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1364,12 +1407,15 @@ class _SoundboardPageState extends State<SoundboardPage> {
                       label: Text(
                         displayLabel,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: isTablet ? 14.0 : 12.0,
                           color: isSelected
                               ? (isDark ? Colors.black87 : Colors.white)
                               : (isDark ? Colors.white : Colors.black87),
                         ),
                       ),
+                      padding: isTablet
+                          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
+                          : EdgeInsets.zero,
                       selected: isSelected,
                       selectedColor: isDark ? Colors.white : Colors.blueGrey[600],
                       backgroundColor: isDark ? Colors.blueGrey[700] : Colors.grey[200],
@@ -1385,6 +1431,109 @@ class _SoundboardPageState extends State<SoundboardPage> {
                   },
                 ),
               ),
+              ),
+
+              // ⏳ Progress bar
+              if (!_hidePlayback) Padding(
+                padding: EdgeInsets.fromLTRB(12, isTablet ? 16.0 : 10.0, 12, 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _currentSound == null
+                                ? l10n.get('noSoundPlaying')
+                                : () {
+                                    final sound = sounds.firstWhere(
+                                      (s) => s['id'] == _currentSound,
+                                      orElse: () => {'title': _currentSound},
+                                    );
+                                    return "${l10n.get('nowPlaying')} ${sound['title']}";
+                                  }(),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (_currentSound != null && _isLooping)
+                          const Icon(Icons.loop, color: Colors.blue, size: 16),
+                        if (_currentSound != null) ...[
+                          const SizedBox(width: 6),
+                          ValueListenableBuilder<double>(
+                            valueListenable: _progressNotifier,
+                            builder: (context, progress, _) {
+                              if (_totalDurationMs == 0) return const SizedBox.shrink();
+                              final soundData = sounds.firstWhere(
+                                (s) => s['id'] == _currentSound,
+                                orElse: () => <String, dynamic>{},
+                              );
+                              final startMs = (soundData['startMs'] as num?)?.toInt() ?? 0;
+                              final endMs = (soundData['endMs'] as num?)?.toInt() ?? _totalDurationMs;
+                              final windowMs = endMs - startMs;
+                              final remainingMs = ((1.0 - progress) * windowMs / _playbackRate).toInt().clamp(0, 999999);
+                              final totalSec = (remainingMs / 1000).ceil();
+                              final m = totalSec ~/ 60;
+                              final s = totalSec % 60;
+                              return Text(
+                                '-$m:${s.toString().padLeft(2, '0')}',
+                                style: TextStyle(color: Colors.grey[600], fontSize: 12, fontWeight: FontWeight.bold),
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        if (_showSpeed) GestureDetector(
+                          onTap: () {
+                            if (_playbackRate == 1.0) {
+                              _changeSpeed(2.0);
+                            } else if (_playbackRate == 2.0) {
+                              _changeSpeed(0.5);
+                            } else {
+                              _changeSpeed(1.0);
+                            }
+                          },
+                          child: Text(
+                            '${_playbackRate}x',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ValueListenableBuilder<double>(
+                        valueListenable: _progressNotifier,
+                        builder: (context, progress, child) {
+                          return SliderTheme(
+                            data: SliderThemeData(
+                              trackHeight: isTablet ? 10.0 : 6.0,
+                              thumbShape: RoundSliderThumbShape(enabledThumbRadius: isTablet ? 12.0 : 8.0),
+                              overlayShape: RoundSliderOverlayShape(overlayRadius: isTablet ? 20.0 : 14.0),
+                              activeTrackColor: Colors.blueAccent,
+                              inactiveTrackColor: Colors.grey.shade300,
+                              thumbColor: Colors.blueAccent,
+                              overlayColor: Colors.blueAccent.withAlpha(40),
+                            ),
+                            child: Slider(
+                              value: progress,
+                              onChanged: _currentSound != null
+                                  ? (value) {
+                                      _seekTo(value);
+                                    }
+                                  : null,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
 
               // 🔍 Search field below categories
@@ -1424,94 +1573,10 @@ class _SoundboardPageState extends State<SoundboardPage> {
                 ),
               ),
 
-              const SizedBox(height: 8),
-
-              // ⏳ Progress bar
-              if (!(_simpleMode && _hidePlayback)) Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _currentSound == null
-                                ? l10n.get('noSoundPlaying')
-                                : () {
-                                    // Nájdi sound v zozname a zobraz title namiesto file name
-                                    final sound = sounds.firstWhere(
-                                      (s) => s['id'] == _currentSound,
-                                      orElse: () => {'title': _currentSound},
-                                    );
-                                    return "${l10n.get('nowPlaying')} ${sound['title']}";
-                                  }(),
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (_currentSound != null && _isLooping)
-                          const Icon(Icons.loop,
-                              color: Colors.blue, size: 16),
-                        if (_currentSound != null)
-                          const SizedBox(width: 4),
-                        GestureDetector(
-                          onTap: () {
-                            if (_playbackRate == 1.0) {
-                              _changeSpeed(2.0);
-                            } else if (_playbackRate == 2.0) {
-                              _changeSpeed(0.5);
-                            } else {
-                              _changeSpeed(1.0);
-                            }
-                          },
-                          child: Text(
-                            '${_playbackRate}x',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ValueListenableBuilder<double>(
-                        valueListenable: _progressNotifier,
-                        builder: (context, progress, child) {
-                          return SliderTheme(
-                            data: SliderThemeData(
-                              trackHeight: 6,
-                              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-                              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                              activeTrackColor: Colors.blueAccent,
-                              inactiveTrackColor: Colors.grey.shade300,
-                              thumbColor: Colors.blueAccent,
-                              overlayColor: Colors.blueAccent.withAlpha(40),
-                            ),
-                            child: Slider(
-                              value: progress,
-                              onChanged: _currentSound != null
-                                  ? (value) {
-                                      _seekTo(value);
-                                    }
-                                  : null,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
               // 🔊 Master volume slider
-              if (_showMasterVolume && !(_simpleMode && _hideVolume))
+              if (_showMasterVolume)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                  padding: EdgeInsets.fromLTRB(12, isTablet ? 20 : 12, 12, 0),
                   child: Row(
                     children: [
                       GestureDetector(
@@ -1532,7 +1597,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                                 orElse: () => <String, dynamic>{},
                               );
                               final base = (soundData['volume'] as num?)?.toDouble() ?? 1.0;
-                              _player.setVolume(base * _masterVolume);
+                              _player.setVolume(base * _masterVolume * _masterVolume);
                             }
                             SharedPreferences.getInstance().then(
                               (prefs) => prefs.setDouble('master_volume', _masterVolume),
@@ -1572,7 +1637,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                                   orElse: () => <String, dynamic>{},
                                 );
                                 final base = (soundData['volume'] as num?)?.toDouble() ?? 1.0;
-                                _player.setVolume(base * v);
+                                _player.setVolume(base * v * v);
                               }
                               if (v > 0) {
                                 SharedPreferences.getInstance().then(
@@ -1650,8 +1715,6 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         startMs: sound['startMs'] ?? 0,
                         endMs: sound['endMs'] as int?,
                         volume: (sound['volume'] as num?)?.toDouble() ?? 1.0,
-                        fadeInMs: (sound['fadeInMs'] as num?)?.toInt() ?? 0,
-                        fadeOutMs: (sound['fadeOutMs'] as num?)?.toInt() ?? 0,
                         onPressed: () async {
                           if (_hapticFeedback) {
                             try {
@@ -1663,18 +1726,19 @@ class _SoundboardPageState extends State<SoundboardPage> {
                             setState(() {});
                           } else {
                             if (_currentSound == sound['id']) {
-                              _stopSound();
+                              _stopSound(withFade: true);
                             } else {
                               _playSound(sound['id']);
                             }
                           }
                         },
-                        onUpdate: (newTitle, newCategories, newColor, newStartMs, newEndMs, newVolume, newFadeInMs, newFadeOutMs) {
-                          _updateSound(sound['id'], newTitle, newCategories, newColor, newStartMs, newEndMs, newVolume, newFadeInMs, newFadeOutMs);
+                        onUpdate: (newTitle, newCategories, newColor, newStartMs, newEndMs, newVolume) {
+                          _updateSound(sound['id'], newTitle, newCategories, newColor, newStartMs, newEndMs, newVolume);
                         },
                         onToggleFavorite: () =>
                             _toggleFavorite(sound['id']),
-                        simpleMode: _simpleMode,
+                        hideFavorite: _hideFavorite,
+                        hideSettings: _hideSettings,
                       );
                     },
                   ),

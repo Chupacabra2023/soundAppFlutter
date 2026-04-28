@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+// import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
@@ -28,7 +28,7 @@ class SoundButton extends StatefulWidget {
   final bool isFavorite;
   final List<String> allCategories;
   final VoidCallback onPressed;
-  final Function(String, List<String>, Color, int, int?, double, int, int) onUpdate;
+  final Function(String, List<String>, Color, int, int?, double) onUpdate;
   final VoidCallback onToggleFavorite;
   final Color buttonColor;
   final Color savedColor;
@@ -37,9 +37,8 @@ class SoundButton extends StatefulWidget {
   final int startMs;
   final int? endMs;
   final double volume;
-  final int fadeInMs;
-  final int fadeOutMs;
-  final bool simpleMode;
+  final bool hideFavorite;
+  final bool hideSettings;
 
   const SoundButton({
     super.key,
@@ -58,9 +57,8 @@ class SoundButton extends StatefulWidget {
     this.startMs = 0,
     this.endMs,
     this.volume = 1.0,
-    this.fadeInMs = 0,
-    this.fadeOutMs = 0,
-    this.simpleMode = false,
+    this.hideFavorite = false,
+    this.hideSettings = false,
   });
 
   @override
@@ -93,11 +91,9 @@ class _SoundButtonState extends State<SoundButton> {
           startMs: widget.startMs,
           endMs: widget.endMs,
           volume: widget.volume,
-          fadeInMs: widget.fadeInMs,
-          fadeOutMs: widget.fadeOutMs,
-          onConfirm: (name, cats, color, start, end, vol, fi, fo) {
+          onConfirm: (name, cats, color, start, end, vol) {
             setState(() => _currentDisplayName = name);
-            widget.onUpdate(name, cats, color, start, end, vol, fi, fo);
+            widget.onUpdate(name, cats, color, start, end, vol);
           },
         ),
       ),
@@ -120,7 +116,7 @@ class _SoundButtonState extends State<SoundButton> {
         child: Column(
           children: [
             Expanded(
-              flex: widget.simpleMode ? 100 : 75,
+              flex: (widget.hideFavorite && widget.hideSettings) ? 100 : 75,
               child: Center(
                 child: widget.isPlaying
                     ? const Column(
@@ -149,7 +145,7 @@ class _SoundButtonState extends State<SoundButton> {
                       ),
               ),
             ),
-            if (!widget.simpleMode)
+            if (!widget.hideFavorite || !widget.hideSettings)
               Expanded(
                 flex: 25,
                 child: Container(
@@ -159,24 +155,30 @@ class _SoundButtonState extends State<SoundButton> {
                   ),
                   padding: _kBottomPadding,
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: widget.hideSettings
+                        ? MainAxisAlignment.end
+                        : widget.hideFavorite
+                            ? MainAxisAlignment.start
+                            : MainAxisAlignment.spaceBetween,
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.settings, color: Colors.white, size: 16),
-                        onPressed: _openSettings,
-                        padding: _kIconPadding,
-                        constraints: _kIconConstraints,
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          widget.isFavorite ? Icons.star : Icons.star_border,
-                          color: widget.isFavorite ? Colors.yellow : Colors.white,
-                          size: 16,
+                      if (!widget.hideSettings)
+                        IconButton(
+                          icon: const Icon(Icons.settings, color: Colors.white, size: 16),
+                          onPressed: _openSettings,
+                          padding: _kIconPadding,
+                          constraints: _kIconConstraints,
                         ),
-                        onPressed: widget.onToggleFavorite,
-                        padding: _kIconPadding,
-                        constraints: _kIconConstraints,
-                      ),
+                      if (!widget.hideFavorite)
+                        IconButton(
+                          icon: Icon(
+                            widget.isFavorite ? Icons.star : Icons.star_border,
+                            color: widget.isFavorite ? Colors.yellow : Colors.white,
+                            size: 16,
+                          ),
+                          onPressed: widget.onToggleFavorite,
+                          padding: _kIconPadding,
+                          constraints: _kIconConstraints,
+                        ),
                     ],
                   ),
                 ),
@@ -201,9 +203,7 @@ class _SoundSettingsSheet extends StatefulWidget {
   final int startMs;
   final int? endMs;
   final double volume;
-  final int fadeInMs;
-  final int fadeOutMs;
-  final void Function(String, List<String>, Color, int, int?, double, int, int) onConfirm;
+  final void Function(String, List<String>, Color, int, int?, double) onConfirm;
 
   const _SoundSettingsSheet({
     required this.displayName,
@@ -214,8 +214,6 @@ class _SoundSettingsSheet extends StatefulWidget {
     required this.startMs,
     this.endMs,
     required this.volume,
-    required this.fadeInMs,
-    required this.fadeOutMs,
     required this.onConfirm,
   });
 
@@ -231,18 +229,14 @@ class _SoundSettingsSheetState extends State<_SoundSettingsSheet> {
   late double _volume;
   late int _startMs;
   int? _endMs;
-  late int _fadeInMs;
-  late int _fadeOutMs;
   int _totalDurationMs = 0;
   bool _isDurationLoading = true;
-  BannerAd? _bannerAd;
-  bool _isBannerLoaded = false;
+  // BannerAd? _bannerAd;
+  // bool _isBannerLoaded = false;
 
   late final TextEditingController _nameController;
   late final TextEditingController _startController;
   late final TextEditingController _endController;
-  late final TextEditingController _fadeInController;
-  late final TextEditingController _fadeOutController;
 
   @override
   void initState() {
@@ -254,23 +248,15 @@ class _SoundSettingsSheetState extends State<_SoundSettingsSheet> {
     _volume = widget.volume;
     _startMs = widget.startMs;
     _endMs = widget.endMs;
-    _fadeInMs = widget.fadeInMs;
-    _fadeOutMs = widget.fadeOutMs;
 
     _nameController = TextEditingController(text: _displayName);
     _startController = TextEditingController(
       text: (widget.startMs / 1000).toStringAsFixed(1),
     );
     _endController = TextEditingController();
-    _fadeInController = TextEditingController(
-      text: widget.fadeInMs > 0 ? (widget.fadeInMs / 1000).toStringAsFixed(1) : '1.0',
-    );
-    _fadeOutController = TextEditingController(
-      text: widget.fadeOutMs > 0 ? (widget.fadeOutMs / 1000).toStringAsFixed(1) : '1.0',
-    );
 
     _fetchDuration();
-    _loadBannerAd();
+    // _loadBannerAd();
   }
 
   Future<void> _fetchDuration() async {
@@ -300,32 +286,14 @@ class _SoundSettingsSheetState extends State<_SoundSettingsSheet> {
     }
   }
 
-  void _loadBannerAd() {
-    _bannerAd = BannerAd(
-      adUnitId: 'ca-app-pub-3948591512361475/4467483687',
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) {
-          if (!mounted) return;
-          setState(() => _isBannerLoaded = true);
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-        },
-      ),
-    );
-    _bannerAd!.load();
-  }
+  // void _loadBannerAd() { ... }
 
   @override
   void dispose() {
-    _bannerAd?.dispose();
+    // _bannerAd?.dispose();
     _nameController.dispose();
     _startController.dispose();
     _endController.dispose();
-    _fadeInController.dispose();
-    _fadeOutController.dispose();
     super.dispose();
   }
 
@@ -342,8 +310,6 @@ class _SoundSettingsSheetState extends State<_SoundSettingsSheet> {
       _startMs,
       finalEndMs,
       _volume,
-      _fadeInMs,
-      _fadeOutMs,
     );
     Navigator.pop(context);
   }
@@ -672,123 +638,11 @@ class _SoundSettingsSheetState extends State<_SoundSettingsSheet> {
                       onChanged: (value) => setState(() => _volume = value),
                     ),
 
-                    const SizedBox(height: 20),
-
-                    // Fade In / Fade Out
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Switch(
-                                    value: _fadeInMs > 0,
-                                    activeColor: Colors.blueGrey[700],
-                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    onChanged: (checked) {
-                                      setState(() {
-                                        if (checked) {
-                                          final secs = double.tryParse(_fadeInController.text) ?? 1.0;
-                                          _fadeInMs = (secs * 1000).toInt().clamp(100, 10000);
-                                        } else {
-                                          _fadeInMs = 0;
-                                        }
-                                      });
-                                    },
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text('Fade In', style: Theme.of(context).textTheme.titleMedium),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              TextField(
-                                controller: _fadeInController,
-                                enabled: _fadeInMs > 0,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                decoration: const InputDecoration(
-                                  suffixText: 's',
-                                  border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                  isDense: true,
-                                ),
-                                onChanged: (val) {
-                                  final secs = double.tryParse(val);
-                                  if (secs != null && secs > 0) {
-                                    setState(() => _fadeInMs = (secs * 1000).toInt().clamp(100, 10000));
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Switch(
-                                    value: _fadeOutMs > 0,
-                                    activeColor: Colors.blueGrey[700],
-                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    onChanged: (checked) {
-                                      setState(() {
-                                        if (checked) {
-                                          final secs = double.tryParse(_fadeOutController.text) ?? 1.0;
-                                          _fadeOutMs = (secs * 1000).toInt().clamp(100, 10000);
-                                        } else {
-                                          _fadeOutMs = 0;
-                                        }
-                                      });
-                                    },
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text('Fade Out', style: Theme.of(context).textTheme.titleMedium),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              TextField(
-                                controller: _fadeOutController,
-                                enabled: _fadeOutMs > 0,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                decoration: const InputDecoration(
-                                  suffixText: 's',
-                                  border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                  isDense: true,
-                                ),
-                                onChanged: (val) {
-                                  final secs = double.tryParse(val);
-                                  if (secs != null && secs > 0) {
-                                    setState(() => _fadeOutMs = (secs * 1000).toInt().clamp(100, 10000));
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
 
                     const SizedBox(height: 16),
 
-                    // Banner ad
-                    if (_isBannerLoaded && _bannerAd != null)
-                      Container(
-                        alignment: Alignment.center,
-                        width: _bannerAd!.size.width.toDouble(),
-                        height: _bannerAd!.size.height.toDouble(),
-                        child: AdWidget(ad: _bannerAd!),
-                      )
-                    else
-                      const SizedBox(
-                        height: 50,
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
+                    // Banner ad (disabled)
+                    // if (_isBannerLoaded && _bannerAd != null) AdWidget(...)
                   ],
                 ),
               ),

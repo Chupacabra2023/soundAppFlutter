@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import 'app_localizations.dart';
 import 'main.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+// import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'sound_data.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -18,12 +18,14 @@ class SettingsPage extends StatefulWidget {
   final Function(String category) onAddCategory;
   final Map<String, int> categoryColors;
   final Function(String category, Color color) onSetCategoryColor;
-  final bool simpleMode;
-  final Function(bool) onToggleSimpleMode;
   final bool hideCategories;
   final Function(bool) onToggleHideCategories;
   final bool hidePlayback;
   final Function(bool) onToggleHidePlayback;
+  final bool hideFavorite;
+  final Function(bool) onToggleHideFavorite;
+  final bool hideSettingsBtn;
+  final Function(bool) onToggleHideSettingsBtn;
   final bool showSearch;
   final bool showLoop;
   final bool showSpeed;
@@ -32,9 +34,11 @@ class SettingsPage extends StatefulWidget {
   final bool showDelete;
   final bool showDarkMode;
   final bool showMasterVolume;
-  final bool hideVolume;
-  final Function(bool) onToggleHideVolume;
   final Function(String key, bool value) onToggleToolbarButton;
+  final int globalFadeInMs;
+  final int globalFadeOutMs;
+  final Function(int) onSetGlobalFadeIn;
+  final Function(int) onSetGlobalFadeOut;
 
   const SettingsPage({
     super.key,
@@ -50,12 +54,14 @@ class SettingsPage extends StatefulWidget {
     required this.onAddCategory,
     required this.categoryColors,
     required this.onSetCategoryColor,
-    required this.simpleMode,
-    required this.onToggleSimpleMode,
     required this.hideCategories,
     required this.onToggleHideCategories,
     required this.hidePlayback,
     required this.onToggleHidePlayback,
+    required this.hideFavorite,
+    required this.onToggleHideFavorite,
+    required this.hideSettingsBtn,
+    required this.onToggleHideSettingsBtn,
     required this.showSearch,
     required this.showLoop,
     required this.showSpeed,
@@ -64,9 +70,11 @@ class SettingsPage extends StatefulWidget {
     required this.showDelete,
     required this.showDarkMode,
     required this.showMasterVolume,
-    required this.hideVolume,
-    required this.onToggleHideVolume,
     required this.onToggleToolbarButton,
+    required this.globalFadeInMs,
+    required this.globalFadeOutMs,
+    required this.onSetGlobalFadeIn,
+    required this.onSetGlobalFadeOut,
   });
 
   @override
@@ -76,11 +84,11 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   late List<String> _localCategories;
   late Map<String, int> _localCategoryColors;
-  late bool _simpleMode;
-  bool _simpleModeExpanded = false;
   late bool _hapticFeedback;
   late bool _hideCategories;
   late bool _hidePlayback;
+  late bool _hideFavorite;
+  late bool _hideSettingsBtn;
   late bool _showSearch;
   late bool _showLoop;
   late bool _showSpeed;
@@ -89,21 +97,23 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool _showDelete;
   late bool _showDarkMode;
   late bool _showMasterVolume;
-  late bool _hideVolume;
+  late int _globalFadeInMs;
+  late int _globalFadeOutMs;
   bool _isExporting = false;
   bool _isImporting = false;
-  BannerAd? _bannerAd;
-  bool _isBannerAdLoaded = false;
+  // BannerAd? _bannerAd;
+  // bool _isBannerAdLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _localCategories = List.from(widget.categories);
     _localCategoryColors = Map.from(widget.categoryColors);
-    _simpleMode = widget.simpleMode;
     _hapticFeedback = widget.hapticFeedback;
     _hideCategories = widget.hideCategories;
     _hidePlayback = widget.hidePlayback;
+    _hideFavorite = widget.hideFavorite;
+    _hideSettingsBtn = widget.hideSettingsBtn;
     _showSearch = widget.showSearch;
     _showLoop = widget.showLoop;
     _showSpeed = widget.showSpeed;
@@ -112,31 +122,16 @@ class _SettingsPageState extends State<SettingsPage> {
     _showDelete = widget.showDelete;
     _showDarkMode = widget.showDarkMode;
     _showMasterVolume = widget.showMasterVolume;
-    _hideVolume = widget.hideVolume;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
+    _globalFadeInMs = widget.globalFadeInMs;
+    _globalFadeOutMs = widget.globalFadeOutMs;
+    // WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
   }
 
-  Future<void> _loadBannerAd() async {
-    final width = MediaQuery.of(context).size.width.truncate();
-    final adSize = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
-    if (adSize == null || !mounted) return;
-    _bannerAd = BannerAd(
-      adUnitId: 'ca-app-pub-3948591512361475/7117189914',
-      size: adSize,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          if (mounted) setState(() => _isBannerAdLoaded = true);
-        },
-        onAdFailedToLoad: (ad, error) => ad.dispose(),
-      ),
-    );
-    _bannerAd?.load();
-  }
+  // Future<void> _loadBannerAd() async { ... }
 
   @override
   void dispose() {
-    _bannerAd?.dispose();
+    // _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -236,10 +231,9 @@ class _SettingsPageState extends State<SettingsPage> {
     required Function(bool) onChanged,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          const SizedBox(width: 36),
           Icon(icon, size: 20, color: Colors.blueGrey[400]),
           const SizedBox(width: 12),
           Expanded(child: Text(title, style: const TextStyle(fontSize: 14))),
@@ -281,105 +275,90 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: Column(
         children: [
-          if (_isBannerAdLoaded && _bannerAd != null)
-            Container(
-              alignment: Alignment.center,
-              width: double.infinity,
-              height: _bannerAd!.size.height.toDouble(),
-              child: AdWidget(ad: _bannerAd!),
-            ),
+          // if (_isBannerAdLoaded && _bannerAd != null)
+          //   Container(child: AdWidget(ad: _bannerAd!)),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-          // 🎛️ Simple Mode Section
+          // 🎛️ Display Options Section
           Card(
             elevation: 2,
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Icon(Icons.touch_app, color: Colors.blueGrey[800]),
+                      Icon(Icons.visibility_outlined, color: Colors.blueGrey[800]),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              l10n.get('simpleMode'),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              l10n.get('displayOptions'),
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Text(
-                              l10n.get('simpleModeDesc'),
+                              l10n.get('displayOptionsDesc'),
                               style: const TextStyle(color: Colors.grey, fontSize: 13),
                             ),
                           ],
                         ),
                       ),
-                      Switch(
-                        value: _simpleMode,
-                        activeThumbColor: Colors.blueGrey[800],
-                        onChanged: (value) {
-                          setState(() => _simpleMode = value);
-                          widget.onToggleSimpleMode(value);
-                        },
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          _simpleModeExpanded ? Icons.expand_less : Icons.expand_more,
-                          color: Colors.blueGrey[600],
-                        ),
-                        onPressed: () => setState(() => _simpleModeExpanded = !_simpleModeExpanded),
-                      ),
                     ],
                   ),
-                ),
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  child: _simpleModeExpanded
-                      ? Column(
-                          children: [
-                            const Divider(height: 1),
-                            _buildSubToggle(
-                              icon: Icons.label_off_outlined,
-                              title: l10n.get('hideCategories'),
-                              value: _hideCategories,
-                              onChanged: (v) {
-                                setState(() => _hideCategories = v);
-                                widget.onToggleHideCategories(v);
-                              },
-                            ),
-                            _buildSubToggle(
-                              icon: Icons.speaker_notes_off_outlined,
-                              title: l10n.get('hidePlayback'),
-                              value: _hidePlayback,
-                              onChanged: (v) {
-                                setState(() => _hidePlayback = v);
-                                widget.onToggleHidePlayback(v);
-                              },
-                            ),
-                            _buildSubToggle(
-                              icon: Icons.volume_off_outlined,
-                              title: 'Skryť volume slider',
-                              value: _hideVolume,
-                              onChanged: (v) {
-                                setState(() => _hideVolume = v);
-                                widget.onToggleHideVolume(v);
-                              },
-                            ),
-                            const SizedBox(height: 4),
-                          ],
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  _buildSubToggle(
+                    icon: Icons.star_border,
+                    title: l10n.get('hideFavoriteButton'),
+                    value: _hideFavorite,
+                    onChanged: (v) {
+                      setState(() => _hideFavorite = v);
+                      widget.onToggleHideFavorite(v);
+                    },
+                  ),
+                  _buildSubToggle(
+                    icon: Icons.settings_outlined,
+                    title: l10n.get('hideSettingsButton'),
+                    value: _hideSettingsBtn,
+                    onChanged: (v) {
+                      setState(() => _hideSettingsBtn = v);
+                      widget.onToggleHideSettingsBtn(v);
+                    },
+                  ),
+                  _buildSubToggle(
+                    icon: Icons.label_off_outlined,
+                    title: l10n.get('hideCategories'),
+                    value: _hideCategories,
+                    onChanged: (v) {
+                      setState(() => _hideCategories = v);
+                      widget.onToggleHideCategories(v);
+                    },
+                  ),
+                  _buildSubToggle(
+                    icon: Icons.speaker_notes_off_outlined,
+                    title: l10n.get('hidePlayback'),
+                    value: _hidePlayback,
+                    onChanged: (v) {
+                      setState(() => _hidePlayback = v);
+                      widget.onToggleHidePlayback(v);
+                    },
+                  ),
+                  _buildSubToggle(
+                    icon: Icons.volume_up,
+                    title: l10n.get('volumeControl'),
+                    value: _showMasterVolume,
+                    onChanged: (v) {
+                      setState(() => _showMasterVolume = v);
+                      widget.onToggleToolbarButton('master_volume', v);
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -806,10 +785,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     setState(() => _showDarkMode = v);
                     widget.onToggleToolbarButton('darkmode', v);
                   }),
-                  _toolbarToggleRow(Icons.volume_up, 'Master volume slider', _showMasterVolume, (v) {
-                    setState(() => _showMasterVolume = v);
-                    widget.onToggleToolbarButton('master_volume', v);
-                  }),
                 ],
               ),
             ),
@@ -921,6 +896,143 @@ class _SettingsPageState extends State<SettingsPage> {
                       setState(() => _hapticFeedback = value);
                       widget.onToggleHapticFeedback(value);
                     },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // 🎚️ Fade In / Fade Out Section
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.gradient, color: Colors.blueGrey[800]),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Fade In / Fade Out',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Globálne nastavenie pre všetky zvuky',
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Switch(
+                                  value: _globalFadeInMs > 0,
+                                  activeThumbColor: Colors.blueGrey[800],
+                                  onChanged: (checked) {
+                                    final newVal = checked ? 1000 : 0;
+                                    setState(() => _globalFadeInMs = newVal);
+                                    widget.onSetGlobalFadeIn(newVal);
+                                  },
+                                ),
+                                const SizedBox(width: 4),
+                                const Text('Fade In', style: TextStyle(fontSize: 14)),
+                              ],
+                            ),
+                            if (_globalFadeInMs > 0) ...[
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Slider(
+                                      value: _globalFadeInMs.toDouble().clamp(100, 5000),
+                                      min: 100,
+                                      max: 5000,
+                                      divisions: 49,
+                                      activeColor: Colors.blueGrey[700],
+                                      inactiveColor: Colors.grey[300],
+                                      onChanged: (v) {
+                                        setState(() => _globalFadeInMs = v.toInt());
+                                        widget.onSetGlobalFadeIn(v.toInt());
+                                      },
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: 42,
+                                    child: Text(
+                                      '${(_globalFadeInMs / 1000).toStringAsFixed(1)}s',
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Switch(
+                                  value: _globalFadeOutMs > 0,
+                                  activeThumbColor: Colors.blueGrey[800],
+                                  onChanged: (checked) {
+                                    final newVal = checked ? 1000 : 0;
+                                    setState(() => _globalFadeOutMs = newVal);
+                                    widget.onSetGlobalFadeOut(newVal);
+                                  },
+                                ),
+                                const SizedBox(width: 4),
+                                const Text('Fade Out', style: TextStyle(fontSize: 14)),
+                              ],
+                            ),
+                            if (_globalFadeOutMs > 0) ...[
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Slider(
+                                      value: _globalFadeOutMs.toDouble().clamp(100, 5000),
+                                      min: 100,
+                                      max: 5000,
+                                      divisions: 49,
+                                      activeColor: Colors.blueGrey[700],
+                                      inactiveColor: Colors.grey[300],
+                                      onChanged: (v) {
+                                        setState(() => _globalFadeOutMs = v.toInt());
+                                        widget.onSetGlobalFadeOut(v.toInt());
+                                      },
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: 42,
+                                    child: Text(
+                                      '${(_globalFadeOutMs / 1000).toStringAsFixed(1)}s',
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
