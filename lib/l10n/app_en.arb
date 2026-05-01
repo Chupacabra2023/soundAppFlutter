@@ -59,5 +59,6 @@
   "shufflePlay": "Shuffle Play",
   "shufflePlayDescription": "Play random sounds continuously",
   "everything": "everything",
-  "favorite": "favorite"
+  "favorite": "favorite",
+  "fadeGlobalDescription": "Global setting for all sounds"
 }

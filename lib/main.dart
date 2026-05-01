@@ -10,7 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'sound_data.dart';
-// import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app_localizations.dart';
 import 'language_picker_page.dart';
@@ -21,9 +21,28 @@ import 'package:file_picker/file_picker.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // await _initializeConsent();
-  // await MobileAds.instance.initialize();
+  MobileAds.instance.initialize();
+  _initializeConsent();
   runApp(const MyApp());
+}
+
+void _initializeConsent() {
+  final params = ConsentRequestParameters();
+  ConsentInformation.instance.requestConsentInfoUpdate(
+    params,
+    () async {
+      if (await ConsentInformation.instance.isConsentFormAvailable()) {
+        ConsentForm.loadAndShowConsentFormIfRequired((formError) {
+          if (formError != null) {
+            debugPrint('Consent form error: ${formError.message}');
+          }
+        });
+      }
+    },
+    (error) {
+      debugPrint('Consent info error: ${error.message}');
+    },
+  );
 }
 
 class _SplashApp extends StatelessWidget {
@@ -39,32 +58,6 @@ class _SplashApp extends StatelessWidget {
     );
   }
 }
-
-// Future<void> _initializeConsent() async {
-//   final completer = Completer<void>();
-//   final params = ConsentRequestParameters();
-//   ConsentInformation.instance.requestConsentInfoUpdate(
-//     params,
-//     () async {
-//       if (await ConsentInformation.instance.isConsentFormAvailable()) {
-//         ConsentForm.loadAndShowConsentFormIfRequired((formError) {
-//           if (formError != null) debugPrint('Consent form error: ${formError.message}');
-//           if (!completer.isCompleted) completer.complete();
-//         });
-//       } else {
-//         if (!completer.isCompleted) completer.complete();
-//       }
-//     },
-//     (error) {
-//       debugPrint('Consent info error: ${error.message}');
-//       if (!completer.isCompleted) completer.complete();
-//     },
-//   );
-//   return completer.future.timeout(
-//     const Duration(seconds: 5),
-//     onTimeout: () => debugPrint('Consent timeout - continuing without consent'),
-//   );
-// }
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -187,7 +180,10 @@ class SoundboardPage extends StatefulWidget {
 }
 
 class _SoundboardPageState extends State<SoundboardPage> {
-  final AudioPlayer _player = AudioPlayer();
+  AudioPlayer _player = AudioPlayer();
+  AudioPlayer? _fadeOutPlayer;
+  Timer? _fadeOutTimer;
+  StreamSubscription? _playerCompleteSubscription;
   final ValueNotifier<double> _progressNotifier = ValueNotifier(0.0);
   Timer? _progressTimer;
   Timer? _debounceTimer; // Debounce timer pre search
@@ -215,7 +211,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
   bool _showAdd = true;
   bool _showDelete = true;
   bool _showDarkMode = true;
-  bool _showMasterVolume = true;
+  bool _showMasterVolume = false;
   double _masterVolume = 1.0;
   int _globalFadeInMs = 0;
   int _globalFadeOutMs = 0;
@@ -461,7 +457,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
       _showAdd = prefs.getBool('show_add') ?? true;
       _showDelete = prefs.getBool('show_delete') ?? true;
       _showDarkMode = prefs.getBool('show_darkmode') ?? true;
-      _showMasterVolume = prefs.getBool('show_master_volume') ?? true;
+      _showMasterVolume = prefs.getBool('show_master_volume') ?? false;
       _masterVolume = prefs.getDouble('master_volume') ?? 1.0;
       if (_masterVolume <= 0) _masterVolume = 1.0;
       _globalFadeInMs = prefs.getInt('global_fade_in_ms') ?? 0;
@@ -471,7 +467,26 @@ class _SoundboardPageState extends State<SoundboardPage> {
     _rebuildCategoriesList();
     _updateFilteredSounds(); // ✅ Inicializuj cache
 
-    _player.onPlayerComplete.listen((event) {
+    await AudioPlayer.global.setAudioContext(AudioContext(
+      iOS: AudioContextIOS(
+        category: AVAudioSessionCategory.playback,
+        options: {AVAudioSessionOptions.mixWithOthers},
+      ),
+      android: AudioContextAndroid(
+        isSpeakerphoneOn: false,
+        stayAwake: false,
+        contentType: AndroidContentType.music,
+        usageType: AndroidUsageType.media,
+        audioFocus: AndroidAudioFocus.none,
+      ),
+    ));
+
+    _attachPlayerCompleteListener(_player);
+  }
+
+  void _attachPlayerCompleteListener(AudioPlayer player) {
+    _playerCompleteSubscription?.cancel();
+    _playerCompleteSubscription = player.onPlayerComplete.listen((event) {
       if (mounted && !_isLooping) {
         _handlePlaybackComplete();
       }
@@ -531,6 +546,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
   Future<void> _playSound(String soundId) async {
     try {
+      _fadeTimer?.cancel();
+      _progressTimer?.cancel();
       await _player.stop();
       if (!mounted) return;
       await _player.setPlaybackRate(_playbackRate);
@@ -616,8 +633,12 @@ class _SoundboardPageState extends State<SoundboardPage> {
   }
 
   // startFrom = 0.0..1.0 within trim window (nie celý súbor)
-  void _startFakeProgress(int totalMs, {double startFrom = 0.0, int startMs = 0, int? endMs, int fadeOutMs = 0, double volume = 1.0}) {
+  void _startFakeProgress(int totalMs, {double startFrom = 0.0, int startMs = 0, int? endMs, int fadeOutMs = 0, double volume = 1.0, bool resetVolume = false}) {
     _progressTimer?.cancel();
+    if (resetVolume) {
+      _fadeTimer?.cancel();
+      _player.setVolume(volume);
+    }
 
     final int effectiveEndMs = (endMs ?? totalMs).clamp(0, totalMs);
     final int clampedStartMs = startMs.clamp(0, totalMs);
@@ -679,7 +700,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
         });
         if (_isShufflePlay) {
           _shuffleTimer = Timer(const Duration(milliseconds: 500), () {
-            if (_isShufflePlay && mounted) _playRandomSound();
+            if (_isShufflePlay && mounted && _currentSound == null && _fadeOutPlayer == null) _playRandomSound();
           });
         }
       }
@@ -698,11 +719,11 @@ class _SoundboardPageState extends State<SoundboardPage> {
     final int? endMs = soundData['endMs'] as int?;
     final int effectiveEndMs = endMs ?? _totalDurationMs;
     final int fadeOutMs = _globalFadeOutMs;
-    final double volume = (soundData['volume'] as num?)?.toDouble() ?? 1.0;
+    final double volume = ((soundData['volume'] as num?)?.toDouble() ?? 1.0) * _masterVolume * _masterVolume;
 
     final int seekMs = (startMs + position * (effectiveEndMs - startMs)).toInt().clamp(startMs, effectiveEndMs);
     _player.seek(Duration(milliseconds: seekMs));
-    _startFakeProgress(_totalDurationMs, startFrom: position, startMs: startMs, endMs: endMs, fadeOutMs: fadeOutMs, volume: volume);
+    _startFakeProgress(_totalDurationMs, startFrom: position, startMs: startMs, endMs: endMs, fadeOutMs: fadeOutMs, volume: volume, resetVolume: true);
   }
 
 
@@ -746,15 +767,32 @@ class _SoundboardPageState extends State<SoundboardPage> {
       );
       final double volume = ((soundData['volume'] as num?)?.toDouble() ?? 1.0) * _masterVolume * _masterVolume;
       setState(() { _currentSound = null; _isLooping = false; });
+
+      // Cancel any previous fade-out player
+      _fadeOutTimer?.cancel();
+      _fadeOutPlayer?.stop();
+      _fadeOutPlayer?.dispose();
+
+      // Detach completion listener from old player before handing it off
+      _playerCompleteSubscription?.cancel();
+      _playerCompleteSubscription = null;
+
+      // Hand off current player to fade-out slot; fresh player is ready for next sound
+      _fadeOutPlayer = _player;
+      _player = AudioPlayer();
+      _attachPlayerCompleteListener(_player);
+
       final fadeStart = DateTime.now();
-      _fadeTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      _fadeOutTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
         if (!mounted) { timer.cancel(); return; }
         final elapsed = DateTime.now().difference(fadeStart).inMilliseconds;
         final progress = (elapsed / _globalFadeOutMs).clamp(0.0, 1.0);
-        _player.setVolume(volume * (1.0 - progress));
+        _fadeOutPlayer!.setVolume(volume * (1.0 - progress));
         if (progress >= 1.0) {
           timer.cancel();
-          _player.stop();
+          _fadeOutPlayer!.stop();
+          _fadeOutPlayer!.dispose();
+          _fadeOutPlayer = null;
         }
       });
     } else {
@@ -1094,8 +1132,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
   void _playRandomSound() {
     if (_cachedFilteredSounds.isEmpty) return;
+    if (_currentSound != null || _fadeOutPlayer != null) return;
 
-    // Get a random sound from filtered sounds
     final random = DateTime.now().millisecondsSinceEpoch % _cachedFilteredSounds.length;
     final randomSound = _cachedFilteredSounds[random];
     _playSound(randomSound['id']);
@@ -1107,7 +1145,10 @@ class _SoundboardPageState extends State<SoundboardPage> {
     _debounceTimer?.cancel();
     _shuffleTimer?.cancel();
     _fadeTimer?.cancel();
+    _fadeOutTimer?.cancel();
+    _playerCompleteSubscription?.cancel();
     _player.dispose();
+    _fadeOutPlayer?.dispose();
     _progressNotifier.dispose(); // ✅ Dispose ValueNotifier
     _searchController.dispose();
     super.dispose();
@@ -1728,6 +1769,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
                             if (_currentSound == sound['id']) {
                               _stopSound(withFade: true);
                             } else {
+                              if (_currentSound != null && _globalFadeOutMs > 0) {
+                                _stopSound(withFade: true);
+                              }
                               _playSound(sound['id']);
                             }
                           }

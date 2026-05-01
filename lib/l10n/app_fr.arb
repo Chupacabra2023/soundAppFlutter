@@ -35,5 +35,6 @@
   "shufflePlay": "Lecture aléatoire",
   "shufflePlayDescription": "Lecture aléatoire en continu",
   "everything": "Tous",
-  "favorite": "favori"
+  "favorite": "favori",
+  "fadeGlobalDescription": "Paramètre global pour tous les sons"
 }

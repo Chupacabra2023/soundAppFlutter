@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:android_intent_plus/android_intent.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'app_localizations.dart';
 import 'main.dart';
-// import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'sound_data.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -101,8 +101,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late int _globalFadeOutMs;
   bool _isExporting = false;
   bool _isImporting = false;
-  // BannerAd? _bannerAd;
-  // bool _isBannerAdLoaded = false;
+  BannerAd? _bannerAd;
+  bool _isBannerAdLoaded = false;
 
   @override
   void initState() {
@@ -124,14 +124,30 @@ class _SettingsPageState extends State<SettingsPage> {
     _showMasterVolume = widget.showMasterVolume;
     _globalFadeInMs = widget.globalFadeInMs;
     _globalFadeOutMs = widget.globalFadeOutMs;
-    // WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
   }
 
-  // Future<void> _loadBannerAd() async { ... }
+  Future<void> _loadBannerAd() async {
+    final width = MediaQuery.of(context).size.width.truncate();
+    final size = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
+    if (!mounted || size == null) return;
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-3948591512361475/4467483687',
+      size: size,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (mounted) setState(() => _isBannerAdLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) => ad.dispose(),
+      ),
+    );
+    _bannerAd?.load();
+  }
 
   @override
   void dispose() {
-    // _bannerAd?.dispose();
+    _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -275,8 +291,12 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: Column(
         children: [
-          // if (_isBannerAdLoaded && _bannerAd != null)
-          //   Container(child: AdWidget(ad: _bannerAd!)),
+          if (_isBannerAdLoaded && _bannerAd != null)
+            SizedBox(
+              width: double.infinity,
+              height: _bannerAd!.size.height.toDouble(),
+              child: AdWidget(ad: _bannerAd!),
+            ),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(16),
@@ -349,12 +369,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                   _buildSubToggle(
-                    icon: Icons.volume_up,
-                    title: l10n.get('volumeControl'),
-                    value: _showMasterVolume,
+                    icon: Icons.volume_off,
+                    title: 'Hide Volume Bar',
+                    value: !_showMasterVolume,
                     onChanged: (v) {
-                      setState(() => _showMasterVolume = v);
-                      widget.onToggleToolbarButton('master_volume', v);
+                      setState(() => _showMasterVolume = !v);
+                      widget.onToggleToolbarButton('master_volume', !v);
                     },
                   ),
                 ],
@@ -924,7 +944,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Globálne nastavenie pre všetky zvuky',
+                    l10n.get('fadeGlobalDescription'),
                     style: const TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                   const SizedBox(height: 12),

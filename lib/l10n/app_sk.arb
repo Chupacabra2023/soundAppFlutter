@@ -35,5 +35,6 @@
   "shufflePlay": "Náhodné prehrávanie",
   "shufflePlayDescription": "Prehrávať náhodné zvuky nepretržite",
   "everything": "všetko",
-  "favorite": "obľúbené"
+  "favorite": "obľúbené",
+  "fadeGlobalDescription": "Globálne nastavenie pre všetky zvuky"
 }

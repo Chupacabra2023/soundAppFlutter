@@ -35,5 +35,6 @@
   "shufflePlay": "Reproducción aleatoria",
   "shufflePlayDescription": "Reproducir sonidos aleatorios continuamente",
   "everything": "todo",
-  "favorite": "favorito"
+  "favorite": "favorito",
+  "fadeGlobalDescription": "Configuración global para todos los sonidos"
 }

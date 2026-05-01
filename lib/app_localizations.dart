@@ -109,6 +109,7 @@ class AppLocalizations {
       'displayOptionsDesc': 'Choose what to show on the soundboard',
       'hideFavoriteButton': 'Hide favorite button',
       'hideSettingsButton': 'Hide settings button',
+      'fadeGlobalDescription': 'Global setting for all sounds',
     },
     'sk': {
       'settings': 'Nastavenia',
@@ -206,6 +207,7 @@ class AppLocalizations {
       'noCategoryTitle': 'Žiadna kategória',
       'noCategoryMessage': 'Tento zvuk sa zobrazí len v „Všetko". Pridať aj tak?',
       'addAnyway': 'Pridať aj tak',
+      'fadeGlobalDescription': 'Globálne nastavenie pre všetky zvuky',
     },
     'es': {
       'settings': 'Configuración',
@@ -303,6 +305,7 @@ class AppLocalizations {
       'noCategoryTitle': 'Sin categoría',
       'noCategoryMessage': 'Este sonido solo aparecerá en "Todo". ¿Añadir de todas formas?',
       'addAnyway': 'Añadir de todas formas',
+      'fadeGlobalDescription': 'Configuración global para todos los sonidos',
     },
     'fr': {
       'settings': 'Paramètres',
@@ -400,6 +403,7 @@ class AppLocalizations {
       'noCategoryTitle': 'Aucune catégorie',
       'noCategoryMessage': 'Ce son apparaîtra uniquement dans « Tous ». Ajouter quand même ?',
       'addAnyway': 'Ajouter quand même',
+      'fadeGlobalDescription': 'Paramètre global pour tous les sons',
     },
     'de': {
       'settings': 'Einstellungen',
@@ -497,6 +501,7 @@ class AppLocalizations {
       'noCategoryTitle': 'Keine Kategorie',
       'noCategoryMessage': 'Dieser Sound erscheint nur unter „Alles". Trotzdem hinzufügen?',
       'addAnyway': 'Trotzdem hinzufügen',
+      'fadeGlobalDescription': 'Globale Einstellung für alle Sounds',
     },
     'ru': {
       'settings': 'Настройки',
@@ -594,6 +599,7 @@ class AppLocalizations {
       'noCategoryTitle': 'Категория не выбрана',
       'noCategoryMessage': 'Этот звук будет отображаться только в «Всё». Добавить всё равно?',
       'addAnyway': 'Добавить всё равно',
+      'fadeGlobalDescription': 'Глобальная настройка для всех звуков',
     },
   };
 
