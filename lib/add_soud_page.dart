@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:record/record.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:id3tag/id3tag.dart';
 import 'dart:async';
 import 'dart:io';
@@ -23,7 +21,7 @@ class _FileEntry {
 
 class AddSoundPage extends StatefulWidget {
   final List<String> categories;
-  final Function(String filePath, String title, List<String> categories, Color color, double volume) onSoundAdded;
+  final Function(String filePath, String title, List<String> categories, Color color, double volume, int startMs, int? endMs) onSoundAdded;
 
   const AddSoundPage({
     super.key,
@@ -357,6 +355,10 @@ class _AddSoundPageState extends State<AddSoundPage> {
       final hasTrim = _fileDurationMs > 0 &&
           (_trimStartMs > 0 || _trimEndMs < _fileDurationMs);
 
+      final isSingleWithTrim = _selectedFiles.length == 1 && hasTrim;
+      final passStartMs = isSingleWithTrim ? _trimStartMs : 0;
+      final passEndMs = isSingleWithTrim ? _trimEndMs : null;
+
       for (final entry in _selectedFiles) {
         final extension = entry.path.split('.').last;
         final displayName = entry.nameController.text.trim();
@@ -370,24 +372,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
         final targetFile = File(finalPath);
         if (await targetFile.exists()) await targetFile.delete();
 
-        if (hasTrim) {
-          final startSec = _trimStartMs / 1000.0;
-          final endSec = _trimEndMs / 1000.0;
-          final session = await FFmpegKit.execute(
-            '-i "${entry.path}" -ss $startSec -to $endSec -c:a libmp3lame -q:a 2 "$finalPath" -y',
-          );
-          final returnCode = await session.getReturnCode();
-          if (!ReturnCode.isSuccess(returnCode)) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('❌ Error trimming audio')),
-              );
-            }
-            return;
-          }
-        } else {
-          await File(entry.path).copy(finalPath);
-        }
+        await File(entry.path).copy(finalPath);
 
         widget.onSoundAdded(
           finalPath,
@@ -395,6 +380,8 @@ class _AddSoundPageState extends State<AddSoundPage> {
           List.from(_selectedCategories),
           _selectedColor,
           _volume,
+          passStartMs,
+          passEndMs,
         );
       }
 

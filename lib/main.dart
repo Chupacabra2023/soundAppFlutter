@@ -1261,7 +1261,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                     MaterialPageRoute(
                       builder: (context) => AddSoundPage(
                         categories: _categories,
-                        onSoundAdded: (filePath, title, categories, color, volume) async {
+                        onSoundAdded: (filePath, title, categories, color, volume, startMs, endMs) async {
                           final savedFileName = await saveFileToPermanentStorage(filePath);
                           setState(() {
                             sounds.add({
@@ -1272,6 +1272,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
                               'fav': false,
                               'color': '#${color.toARGB32().toRadixString(16).padLeft(8, '0')}',
                               'volume': volume,
+                              'startMs': startMs,
+                              'endMs': endMs,
                             });
                           });
                           await saveSoundsToStorage();
