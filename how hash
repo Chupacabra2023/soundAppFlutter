@@ -1,0 +1,178 @@
+[33mcommit e7d020d188e56866bfeebdb2faa488c1a810271e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Sun May 10 15:05:47 2026 +0200
+
+    fixed bugs smaller size
+
+[33mcommit dc7f321c33fda2ff6cb2b0b6dd05ec727fd202f5[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Fri May 1 15:18:43 2026 +0200
+
+    feat adds and fade out working
+
+[33mcommit 66b7d0f93c7964446438ea5a368358955c10673c[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Tue Apr 28 15:31:05 2026 +0200
+
+    dozajn and speed text removed
+
+[33mcommit 7796b7988aa42f7ffe7a76e0f71c6b67d2ca8047[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Wed Apr 22 19:14:13 2026 +0200
+
+    feat: fade in fade out
+
+[33mcommit fbafccd036268fb20ff5f4c75fa998577517cd89[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Wed Apr 22 17:51:46 2026 +0200
+
+    feat: bug fixes - mute, fade stop, settings dialog crash, category toast
+    
+    - Fix mute button not calling player.setVolume(0)
+    - Fix fade out playing on manual stop (only on natural end now)
+    - Fix settings dialog crash (dependents.isEmpty) by converting StatefulBuilder to proper StatefulWidget
+    - Add toast when deleting category leaves sounds without category
+    
+    Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+
+[33mcommit 4282cc2ef4fddc5503650b3fd68dd783088d3d4e[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Thu Apr 9 01:23:18 2026 +0200
+
+    feat: drag and drop simple mode backup
+
+[33mcommit 224c09d502050298bae6b951b5779a0799978283[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Wed Apr 8 23:06:54 2026 +0200
+
+    pushing before drag and drop
+
+[33mcommit fbf2ebaf8f390b5c6b8f231e7f980ae1d6acf374[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Mon Mar 23 15:52:41 2026 +0100
+
+    feat: dotate button add moving
+
+[33mcommit 2784646f5d259a895f900f349698f5a68711de57[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Wed Mar 18 14:30:06 2026 +0100
+
+    feat: color to category managment added
+
+[33mcommit ba11a181d043a63a0ffbe72043d4efc955b62d97[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Thu Mar 12 17:06:56 2026 +0100
+
+    smaller size and volume
+
+[33mcommit baf72fadeff5707c1c3424cd32f6135e1c80b962[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Thu Mar 12 14:29:48 2026 +0100
+
+    smaller sounds size
+
+[33mcommit 606ee93e1f9cfc4b14d1e8522517b67257747abb[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Sun Mar 8 19:51:24 2026 +0100
+
+    completed version
+
+[33mcommit 972e554441638a5df45533523f0d5f4ff00d4200[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Sun Mar 8 18:04:01 2026 +0100
+
+    category cadded
+
+[33mcommit 81519d2bca0e598ba511c9e00c1dc7d41221def0[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Sun Mar 8 16:07:09 2026 +0100
+
+    feat: time trim layout organization added automatic fillament multi. multi file picker dark mode categorie dedletion added
+
+[33mcommit d73d16296f8438ba95e373068cd0229fc9301617[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Thu Mar 5 14:12:06 2026 +0100
+
+    saving before feature: time trim
+
+[33mcommit 061b17755d0cead35849d0d199501c412c41a861[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Tue Feb 17 21:36:20 2026 +0100
+
+    changed movable slidebar
+
+[33mcommit 2d8ca10bfc515e72776aafff5e47347f4ccbfb76[m
+Author: Chupacabra2023 <130476857+Chupacabra2023@users.noreply.github.com>
+Date:   Tue Feb 17 21:18:56 2026 +0100
+
+    final version
+
+[33mcommit fd084dd808ee2c8521e4224b1f8abe63a31939e8[m
+Author: MarcelS <marcel.sotak123@gmail.com>
+Date:   Mon Feb 2 23:20:19 2026 +0100
+
+    push before optimalization
+
+[33mcommit 013aef775c7d505e5619b68dec487f7882ff7f8f[m[33m ([m[1;32mbackup-before-filter-20260110-143343[m[33m)[m
+Author: MarcelS <marcel.sotak123@gmail.com>
+Date:   Sat Jan 10 14:30:29 2026 +0100
+
+    Remove exposed AdMob API key from AndroidManifest.xml
+    
+    Replaced the public AdMob App ID with a placeholder to prevent unauthorized use. This improves security by removing sensitive credentials from version control.
+    
+    Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+
+[33mcommit fce3b6698e85dabaae7e4dec1116ab346c7ef98c[m
+Author: MarcelS <marcel.sotak123@gmail.com>
+Date:   Tue Dec 23 20:52:59 2025 +0100
+
+    solved keyboard lagging adverite added
+
+[33mcommit 8259f4e201fbf4c4cf5e16c03c244fafd7b91182[m
+Author: MarcelS <marcel.sotak123@gmail.com>
+Date:   Fri Dec 19 22:27:55 2025 +0100
+
+    added shuffle and translations
+
+[33mcommit 6e83e3e43ac6345753724791a6349d36680e59df[m
+Author: MarcelS <marcel.sotak123@gmail.com>
+Date:   Fri Dec 19 00:59:45 2025 +0100
+
+    whole app fixed
+
+[33mcommit 358b099808af0895fe324eed9af6cf6b2e480006[m
+Author: MarcelS <marcel.sotak123@gmail.com>
+Date:   Thu Dec 18 23:50:59 2025 +0100
+
+    last save
+
+[33mcommit 5fddb408aebcaee3405e51bae566c194b9fff0a3[m
+Author: MarcelS <marcel.sotak123@gmail.com>
+Date:   Thu Dec 18 22:53:30 2025 +0100
+
+    app done but keyboard lagging
+
+[33mcommit 929c6606cc48a47b1e7287fcd48b5d60a39a96b1[m
+Author: MarcelS <marcel.sotak123@gmail.com>
+Date:   Thu Dec 18 13:39:14 2025 +0100
+
+    app done but lagging when palying sound
+
+[33mcommit 10b73dee2d87dbafe0d987bce9fafa1dd011dd9c[m
+Author: MarcelS <marcel.sotak123@gmail.com>
+Date:   Wed Dec 17 20:30:20 2025 +0100
+
+    added adds and all app fixed
+
+[33mcommit e48b5f50e382d0a469f21a539f4945d9afe0c611[m
+Author: MarcelS <marcel.sotak123@gmail.com>
+Date:   Sat Oct 25 21:26:35 2025 +0200
+
+    final app
+
+[33mcommit 68cb6bbb63e33d405b61ee4afd168448329aff37[m
+Author: MarcelS <marcel.sotak123@gmail.com>
+Date:   Thu Oct 23 13:26:02 2025 +0200
+
+    done flutter sound app
