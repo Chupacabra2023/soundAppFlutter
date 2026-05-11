@@ -29,7 +29,8 @@
       "Bash(find:*)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(flutter pub *)"
+      "Bash(flutter pub *)",
+      "Bash(grep -v \"^$\")"
     ]
   }
 }

@@ -185,6 +185,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
   Timer? _fadeOutTimer;
   StreamSubscription? _playerCompleteSubscription;
   final ValueNotifier<double> _progressNotifier = ValueNotifier(0.0);
+  final ValueNotifier<double> _fadeOutProgressNotifier = ValueNotifier(0.0);
+  String? _fadingOutSound;
   Timer? _progressTimer;
   Timer? _debounceTimer; // Debounce timer pre search
   Timer? _shuffleTimer; // Timer pre shuffle play
@@ -754,6 +756,18 @@ class _SoundboardPageState extends State<SoundboardPage> {
     }
   }
 
+  void _cancelFadeOut() {
+    _fadeOutTimer?.cancel();
+    _fadeOutTimer = null;
+    _fadeOutPlayer?.stop();
+    _fadeOutPlayer?.dispose();
+    _fadeOutPlayer = null;
+    _fadeOutProgressNotifier.value = 0.0;
+    if (_fadingOutSound != null && mounted) {
+      setState(() => _fadingOutSound = null);
+    }
+  }
+
   void _stopSound({bool withFade = false}) {
     _progressTimer?.cancel();
     _fadeTimer?.cancel();
@@ -766,16 +780,24 @@ class _SoundboardPageState extends State<SoundboardPage> {
         orElse: () => <String, dynamic>{},
       );
       final double volume = ((soundData['volume'] as num?)?.toDouble() ?? 1.0) * _masterVolume * _masterVolume;
-      setState(() { _currentSound = null; _isLooping = false; });
 
-      // Cancel any previous fade-out player
+      // Cancel any previous fade-out
       _fadeOutTimer?.cancel();
       _fadeOutPlayer?.stop();
       _fadeOutPlayer?.dispose();
+      _fadeOutPlayer = null;
+      _fadeOutProgressNotifier.value = 0.0;
 
       // Detach completion listener from old player before handing it off
       _playerCompleteSubscription?.cancel();
       _playerCompleteSubscription = null;
+
+      final fadingSound = _currentSound!;
+      setState(() {
+        _currentSound = null;
+        _isLooping = false;
+        _fadingOutSound = fadingSound;
+      });
 
       // Hand off current player to fade-out slot; fresh player is ready for next sound
       _fadeOutPlayer = _player;
@@ -787,17 +809,26 @@ class _SoundboardPageState extends State<SoundboardPage> {
         if (!mounted) { timer.cancel(); return; }
         final elapsed = DateTime.now().difference(fadeStart).inMilliseconds;
         final progress = (elapsed / _globalFadeOutMs).clamp(0.0, 1.0);
-        _fadeOutPlayer!.setVolume(volume * (1.0 - progress));
+        _fadeOutPlayer?.setVolume(volume * (1.0 - progress));
+        _fadeOutProgressNotifier.value = progress;
         if (progress >= 1.0) {
           timer.cancel();
-          _fadeOutPlayer!.stop();
-          _fadeOutPlayer!.dispose();
+          _fadeOutPlayer?.stop();
+          _fadeOutPlayer?.dispose();
           _fadeOutPlayer = null;
+          if (mounted) setState(() => _fadingOutSound = null);
         }
       });
     } else {
+      // Immediate stop — cancel any ongoing fade-out too
+      _fadeOutTimer?.cancel();
+      _fadeOutTimer = null;
+      _fadeOutPlayer?.stop();
+      _fadeOutPlayer?.dispose();
+      _fadeOutPlayer = null;
+      _fadeOutProgressNotifier.value = 0.0;
       _player.stop().then((_) {
-        if (mounted) setState(() { _currentSound = null; _isLooping = false; });
+        if (mounted) setState(() { _currentSound = null; _isLooping = false; _fadingOutSound = null; });
       });
     }
   }
@@ -1115,19 +1146,25 @@ class _SoundboardPageState extends State<SoundboardPage> {
   }
 
   void _toggleShufflePlay() {
-    setState(() {
-      _isShufflePlay = !_isShufflePlay;
+    final enabling = !_isShufflePlay;
+    setState(() => _isShufflePlay = enabling);
 
-      if (_isShufflePlay) {
-        // Start shuffle play - play a random sound immediately
-        _playRandomSound();
-      } else {
-        // Stop shuffle play - cancel timer and stop current sound
-        _shuffleTimer?.cancel();
-        _shuffleTimer = null;
+    if (enabling) {
+      if (_cachedFilteredSounds.isEmpty) return;
+      final random = DateTime.now().millisecondsSinceEpoch % _cachedFilteredSounds.length;
+      final randomSound = _cachedFilteredSounds[random];
+      if (_fadingOutSound != null) _cancelFadeOut();
+      if (_currentSound != null && _globalFadeOutMs > 0) {
+        _stopSound(withFade: true);
+      } else if (_currentSound != null) {
         _stopSound();
       }
-    });
+      _playSound(randomSound['id']);
+    } else {
+      _shuffleTimer?.cancel();
+      _shuffleTimer = null;
+      _stopSound(withFade: true);
+    }
   }
 
   void _playRandomSound() {
@@ -1149,7 +1186,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
     _playerCompleteSubscription?.cancel();
     _player.dispose();
     _fadeOutPlayer?.dispose();
-    _progressNotifier.dispose(); // ✅ Dispose ValueNotifier
+    _progressNotifier.dispose();
+    _fadeOutProgressNotifier.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -1755,6 +1793,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         isFavorite: sound['fav'] ?? false,
                         allCategories: _categories,
                         isPlaying: _currentSound == sound['id'],
+                        isFadingOut: _fadingOutSound == sound['id'],
+                        fadeOutProgress: _fadingOutSound == sound['id'] ? _fadeOutProgressNotifier : null,
                         startMs: sound['startMs'] ?? 0,
                         endMs: sound['endMs'] as int?,
                         volume: (sound['volume'] as num?)?.toDouble() ?? 1.0,
@@ -1769,10 +1809,18 @@ class _SoundboardPageState extends State<SoundboardPage> {
                             setState(() {});
                           } else {
                             if (_currentSound == sound['id']) {
+                              // 2nd click: start fade-out
                               _stopSound(withFade: true);
+                            } else if (_fadingOutSound == sound['id']) {
+                              // 3rd click: cancel fade-out immediately
+                              _cancelFadeOut();
                             } else {
+                              // Different sound: cancel any ongoing fade-out, stop current, play new
+                              if (_fadingOutSound != null) _cancelFadeOut();
                               if (_currentSound != null && _globalFadeOutMs > 0) {
                                 _stopSound(withFade: true);
+                              } else if (_currentSound != null) {
+                                _stopSound();
                               }
                               _playSound(sound['id']);
                             }

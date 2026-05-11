@@ -39,6 +39,8 @@ class SoundButton extends StatefulWidget {
   final double volume;
   final bool hideFavorite;
   final bool hideSettings;
+  final bool isFadingOut;
+  final ValueNotifier<double>? fadeOutProgress;
 
   const SoundButton({
     super.key,
@@ -59,6 +61,8 @@ class SoundButton extends StatefulWidget {
     this.volume = 1.0,
     this.hideFavorite = false,
     this.hideSettings = false,
+    this.isFadingOut = false,
+    this.fadeOutProgress,
   });
 
   @override
@@ -113,73 +117,95 @@ class _SoundButtonState extends State<SoundButton> {
               ? Border.all(color: Colors.redAccent, width: 2.5)
               : null,
         ),
-        child: Column(
+        child: Stack(
           children: [
-            Expanded(
-              flex: (widget.hideFavorite && widget.hideSettings) ? 100 : 75,
-              child: Center(
-                child: widget.isPlaying
-                    ? const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.stop, size: 40, color: Colors.white),
-                          SizedBox(height: 2),
-                          Text(
-                            'STOP',
-                            style: TextStyle(
-                              fontSize: 12,
+            Column(
+              children: [
+                Expanded(
+                  flex: (widget.hideFavorite && widget.hideSettings) ? 100 : 75,
+                  child: Center(
+                    child: widget.isPlaying
+                        ? const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.stop, size: 40, color: Colors.white),
+                              SizedBox(height: 2),
+                              Text(
+                                'STOP',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Text(
+                            _currentDisplayName,
+                            style: const TextStyle(
+                              fontSize: 15,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
                             ),
+                            textAlign: TextAlign.center,
                           ),
-                        ],
-                      )
-                    : Text(
-                        _currentDisplayName,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-              ),
-            ),
-            if (!widget.hideFavorite || !widget.hideSettings)
-              Expanded(
-                flex: 25,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF546E7A),
-                    borderRadius: _kBottomBorderRadius,
                   ),
-                  padding: _kBottomPadding,
-                  child: Row(
-                    mainAxisAlignment: widget.hideSettings
-                        ? MainAxisAlignment.end
-                        : widget.hideFavorite
-                            ? MainAxisAlignment.start
-                            : MainAxisAlignment.spaceBetween,
-                    children: [
-                      if (!widget.hideSettings)
-                        IconButton(
-                          icon: const Icon(Icons.settings, color: Colors.white, size: 16),
-                          onPressed: _openSettings,
-                          padding: _kIconPadding,
-                          constraints: _kIconConstraints,
-                        ),
-                      if (!widget.hideFavorite)
-                        IconButton(
-                          icon: Icon(
-                            widget.isFavorite ? Icons.star : Icons.star_border,
-                            color: widget.isFavorite ? Colors.yellow : Colors.white,
-                            size: 16,
-                          ),
-                          onPressed: widget.onToggleFavorite,
-                          padding: _kIconPadding,
-                          constraints: _kIconConstraints,
-                        ),
-                    ],
+                ),
+                if (!widget.hideFavorite || !widget.hideSettings)
+                  Expanded(
+                    flex: 25,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF546E7A),
+                        borderRadius: _kBottomBorderRadius,
+                      ),
+                      padding: _kBottomPadding,
+                      child: Row(
+                        mainAxisAlignment: widget.hideSettings
+                            ? MainAxisAlignment.end
+                            : widget.hideFavorite
+                                ? MainAxisAlignment.start
+                                : MainAxisAlignment.spaceBetween,
+                        children: [
+                          if (!widget.hideSettings)
+                            IconButton(
+                              icon: const Icon(Icons.settings, color: Colors.white, size: 16),
+                              onPressed: _openSettings,
+                              padding: _kIconPadding,
+                              constraints: _kIconConstraints,
+                            ),
+                          if (!widget.hideFavorite)
+                            IconButton(
+                              icon: Icon(
+                                widget.isFavorite ? Icons.star : Icons.star_border,
+                                color: widget.isFavorite ? Colors.yellow : Colors.white,
+                                size: 16,
+                              ),
+                              onPressed: widget.onToggleFavorite,
+                              padding: _kIconPadding,
+                              constraints: _kIconConstraints,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            if (widget.isFadingOut && widget.fadeOutProgress != null)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: 5,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+                  child: ValueListenableBuilder<double>(
+                    valueListenable: widget.fadeOutProgress!,
+                    builder: (context, progress, _) => LinearProgressIndicator(
+                      value: 1.0 - progress,
+                      backgroundColor: Colors.white24,
+                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
                   ),
                 ),
               ),
