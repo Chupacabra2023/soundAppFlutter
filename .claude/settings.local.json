@@ -30,7 +30,13 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(flutter pub *)",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "Bash(dart pub *)",
+      "Bash(findstr /i \"google_mobile_ads\")",
+      "Bash(findstr /i \"google_mobile\")",
+      "Bash(curl -s \"https://pub.dev/packages/google_mobile_ads/changelog\")",
+      "Bash(flutter --version)",
+      "Bash(flutter upgrade *)"
     ]
   }
 }
