@@ -164,7 +164,7 @@ class _MyAppState extends State<MyApp> {
         Locale('ru'),
       ],
       home: _isFirstLaunch == null
-          ? const SizedBox()
+          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
           : _isFirstLaunch == true
               ? LanguagePickerPage(onLanguageSelected: _onLanguageSelected)
               : const SoundboardPage(),
