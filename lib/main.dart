@@ -552,8 +552,6 @@ class _SoundboardPageState extends State<SoundboardPage> {
       _progressTimer?.cancel();
       await _player.stop();
       if (!mounted) return;
-      await _player.setPlaybackRate(_playbackRate);
-      await _player.setReleaseMode(ReleaseMode.release);
 
       // Look up sound by ID
       final soundData = sounds.firstWhere(
@@ -567,19 +565,23 @@ class _SoundboardPageState extends State<SoundboardPage> {
       final double volume = ((soundData['volume'] as num?)?.toDouble() ?? 1.0) * _masterVolume * _masterVolume;
       final int fadeInMs = _globalFadeInMs;
       final int fadeOutMs = _globalFadeOutMs;
-      await _player.setVolume(fadeInMs > 0 ? 0.0 : volume);
+
+      // fire-and-forget: these don't need to complete before play
+      unawaited(_player.setPlaybackRate(_playbackRate));
+      unawaited(_player.setReleaseMode(ReleaseMode.release));
+      unawaited(_player.setVolume(fadeInMs > 0 ? 0.0 : volume));
 
       final dir = await getApplicationDocumentsDirectory();
       final filePath = '${dir.path}/$name';
 
+      // Subscribe BEFORE play so we never miss an early duration event
+      final durationFuture = _player.onDurationChanged.first;
+
       if (await File(filePath).exists()) {
         await _player.play(DeviceFileSource(filePath));
-        debugPrint('Playing from permanent storage: $filePath');
       } else if (name.startsWith('/')) {
         await _player.play(DeviceFileSource(name));
-        debugPrint('Playing from local path: $name');
       } else {
-        debugPrint('File does not exist: $filePath');
         if (mounted) {
           final l10n = AppLocalizations.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -589,13 +591,12 @@ class _SoundboardPageState extends State<SoundboardPage> {
         return;
       }
 
-      setState(() {
-        _currentSound = soundId;
-      });
+      if (!mounted) return;
+      setState(() => _currentSound = soundId);
       _progressNotifier.value = 0.0;
 
       if (startMs > 0) {
-        await _player.seek(Duration(milliseconds: startMs));
+        unawaited(_player.seek(Duration(milliseconds: startMs)));
       }
 
       if (fadeInMs > 0) {
@@ -610,19 +611,13 @@ class _SoundboardPageState extends State<SoundboardPage> {
         });
       }
 
-      final duration = await _player.getDuration();
-      if (duration != null && duration.inMilliseconds > 0) {
-        _totalDurationMs = duration.inMilliseconds;
-        _startFakeProgress(duration.inMilliseconds, startMs: startMs, endMs: endMs, fadeOutMs: fadeOutMs, volume: volume);
-      } else {
-        _player.onDurationChanged.first.then((d) {
-          final length = d.inMilliseconds;
-          if (length > 0) {
-            _totalDurationMs = length;
-            _startFakeProgress(length, startMs: startMs, endMs: endMs, fadeOutMs: fadeOutMs, volume: volume);
-          }
-        });
-      }
+      durationFuture.then((d) {
+        final length = d.inMilliseconds;
+        if (length > 0 && mounted && _currentSound == soundId) {
+          _totalDurationMs = length;
+          _startFakeProgress(length, startMs: startMs, endMs: endMs, fadeOutMs: fadeOutMs, volume: volume);
+        }
+      }).catchError((_) {});
     } catch (e) {
       debugPrint('Error playing sound: $e');
       if (mounted) {
