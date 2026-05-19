@@ -601,7 +601,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
       if (fadeInMs > 0) {
         _fadeTimer?.cancel();
         final fadeStart = DateTime.now();
-        _fadeTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+        _fadeTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
           if (!mounted) { timer.cancel(); return; }
           final elapsed = DateTime.now().difference(fadeStart).inMilliseconds;
           final progress = (elapsed / fadeInMs).clamp(0.0, 1.0);
@@ -674,7 +674,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
         fadeOutStarted = true;
         _fadeTimer?.cancel();
         final fadeStart = DateTime.now();
-        _fadeTimer = Timer.periodic(const Duration(milliseconds: 16), (ft) {
+        _fadeTimer = Timer.periodic(const Duration(milliseconds: 50), (ft) {
           if (!mounted) { ft.cancel(); return; }
           final fe = DateTime.now().difference(fadeStart).inMilliseconds;
           final fp = (fe / (fadeOutMs / _playbackRate)).clamp(0.0, 1.0);
@@ -805,7 +805,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
       _attachPlayerCompleteListener(_player);
 
       final fadeStart = DateTime.now();
-      _fadeOutTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      _fadeOutTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
         if (!mounted) { timer.cancel(); return; }
         final elapsed = DateTime.now().difference(fadeStart).inMilliseconds;
         final progress = (elapsed / _globalFadeOutMs).clamp(0.0, 1.0);
@@ -1800,9 +1800,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                         volume: (sound['volume'] as num?)?.toDouble() ?? 1.0,
                         onPressed: () async {
                           if (_hapticFeedback) {
-                            try {
-                              await Vibration.vibrate(duration: 50);
-                            } catch (_) {}
+                            Vibration.vibrate(duration: 50).catchError((_) {});
                           }
                           if (_isDeleteMode) {
                             await deleteSound(sound['id']);

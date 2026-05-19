@@ -110,6 +110,7 @@ class AppLocalizations {
       'hideFavoriteButton': 'Hide favorite button',
       'hideSettingsButton': 'Hide settings button',
       'fadeGlobalDescription': 'Global setting for all sounds',
+      'hideVolumeBar': 'Hide Volume Bar',
     },
     'sk': {
       'settings': 'Nastavenia',
@@ -208,6 +209,7 @@ class AppLocalizations {
       'noCategoryMessage': 'Tento zvuk sa zobrazí len v „Všetko". Pridať aj tak?',
       'addAnyway': 'Pridať aj tak',
       'fadeGlobalDescription': 'Globálne nastavenie pre všetky zvuky',
+      'hideVolumeBar': 'Skryť lištu hlasitosti',
     },
     'es': {
       'settings': 'Configuración',
@@ -306,6 +308,7 @@ class AppLocalizations {
       'noCategoryMessage': 'Este sonido solo aparecerá en "Todo". ¿Añadir de todas formas?',
       'addAnyway': 'Añadir de todas formas',
       'fadeGlobalDescription': 'Configuración global para todos los sonidos',
+      'hideVolumeBar': 'Ocultar barra de volumen',
     },
     'fr': {
       'settings': 'Paramètres',
@@ -404,6 +407,7 @@ class AppLocalizations {
       'noCategoryMessage': 'Ce son apparaîtra uniquement dans « Tous ». Ajouter quand même ?',
       'addAnyway': 'Ajouter quand même',
       'fadeGlobalDescription': 'Paramètre global pour tous les sons',
+      'hideVolumeBar': 'Masquer le volume',
     },
     'de': {
       'settings': 'Einstellungen',
@@ -502,6 +506,7 @@ class AppLocalizations {
       'noCategoryMessage': 'Dieser Sound erscheint nur unter „Alles". Trotzdem hinzufügen?',
       'addAnyway': 'Trotzdem hinzufügen',
       'fadeGlobalDescription': 'Globale Einstellung für alle Sounds',
+      'hideVolumeBar': 'Lautstärkeleiste ausblenden',
     },
     'ru': {
       'settings': 'Настройки',
@@ -600,6 +605,7 @@ class AppLocalizations {
       'noCategoryMessage': 'Этот звук будет отображаться только в «Всё». Добавить всё равно?',
       'addAnyway': 'Добавить всё равно',
       'fadeGlobalDescription': 'Глобальная настройка для всех звуков',
+      'hideVolumeBar': 'Скрыть регулятор громкости',
     },
   };
 
