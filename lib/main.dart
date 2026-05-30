@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'sound_button.dart';
@@ -18,6 +19,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:reorderable_grid_view/reorderable_grid_view.dart';
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
+
+// Top-level functions for compute() — musia byť mimo triedy
+String _encodeJson(Map<String, dynamic> data) => jsonEncode(data);
+Map<String, dynamic> _decodeJson(String content) =>
+    Map<String, dynamic>.from(jsonDecode(content) as Map);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -180,6 +186,9 @@ class SoundboardPage extends StatefulWidget {
 }
 
 class _SoundboardPageState extends State<SoundboardPage> {
+  bool _isAudioBusy = false;
+  bool _isDisposed = false;
+
   AudioPlayer _player = AudioPlayer();
   AudioPlayer? _fadeOutPlayer;
   Timer? _fadeOutTimer;
@@ -257,7 +266,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
       if (await file.exists()) {
         final content = await file.readAsString();
         if (content.isNotEmpty) {
-          final data = jsonDecode(content);
+          // jsonDecode s veľkým JSON blokuje main thread — presun do isolate
+          final data = await compute(_decodeJson, content);
 
           // Skontroluj verziu dát
           final savedVersion = data['version'] ?? 1;
@@ -357,15 +367,16 @@ class _SoundboardPageState extends State<SoundboardPage> {
       final dir = await getApplicationDocumentsDirectory();
       final file = File('${dir.path}/sounds.json');
 
-      // Ulož zvuky aj s verziou dát
       final data = {
         'version': DATA_VERSION,
-        'sounds': sounds,
-        'categories': _customCategories,
-        'categoryColors': _categoryColors,
+        'sounds': List<Map<String, dynamic>>.from(sounds),
+        'categories': List<String>.from(_customCategories),
+        'categoryColors': Map<String, int>.from(_categoryColors),
       };
 
-      await file.writeAsString(jsonEncode(data));
+      // jsonEncode so stovkami objektov blokuje main thread — presun do isolate
+      final encoded = await compute(_encodeJson, data);
+      await file.writeAsString(encoded);
       debugPrint('JSON saved at: ${file.path} (version: $DATA_VERSION)');
     } catch (e) {
       debugPrint('Error saving sounds to storage: $e');
@@ -394,8 +405,15 @@ class _SoundboardPageState extends State<SoundboardPage> {
           };
         }));
 
-      for (var sound in defaultSounds) {
-        await saveFileToPermanentStorage('assets/${sound['name']}');
+      // Kopíruj súbory po dávkach 20 — paralelnejšie ako seq, ale nepreťaží I/O
+      const batchSize = 20;
+      for (int i = 0; i < defaultSounds.length; i += batchSize) {
+        final batch = defaultSounds.skip(i).take(batchSize);
+        await Future.wait(
+          batch.map((sound) =>
+              saveFileToPermanentStorage('assets/${sound['name']}')),
+          eagerError: false,
+        );
       }
 
       await saveSoundsToStorage();
@@ -467,21 +485,25 @@ class _SoundboardPageState extends State<SoundboardPage> {
     });
     await _checkAndLoadSounds();
     _rebuildCategoriesList();
-    _updateFilteredSounds(); // ✅ Inicializuj cache
+    _updateFilteredSounds();
 
-    await AudioPlayer.global.setAudioContext(AudioContext(
-      iOS: AudioContextIOS(
-        category: AVAudioSessionCategory.playback,
-        options: {AVAudioSessionOptions.mixWithOthers},
-      ),
-      android: AudioContextAndroid(
-        isSpeakerphoneOn: false,
-        stayAwake: false,
-        contentType: AndroidContentType.music,
-        usageType: AndroidUsageType.media,
-        audioFocus: AndroidAudioFocus.none,
-      ),
-    ));
+    try {
+      await AudioPlayer.global.setAudioContext(AudioContext(
+        iOS: AudioContextIOS(
+          category: AVAudioSessionCategory.playback,
+          options: {AVAudioSessionOptions.mixWithOthers},
+        ),
+        android: AudioContextAndroid(
+          isSpeakerphoneOn: false,
+          stayAwake: false,
+          contentType: AndroidContentType.music,
+          usageType: AndroidUsageType.media,
+          audioFocus: AndroidAudioFocus.none,
+        ),
+      ));
+    } catch (e) {
+      debugPrint('setAudioContext failed: $e');
+    }
 
     _attachPlayerCompleteListener(_player);
   }
@@ -547,6 +569,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
   }
 
   Future<void> _playSound(String soundId) async {
+    if (_isDisposed || _isAudioBusy) return;
+    _isAudioBusy = true;
     try {
       _fadeTimer?.cancel();
       _progressTimer?.cancel();
@@ -626,6 +650,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
           SnackBar(content: Text('${l10n.get('errorPlayingSound')} $e')),
         );
       }
+    } finally {
+      _isAudioBusy = false;
     }
   }
 
@@ -706,6 +732,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
   // position = 0.0..1.0 v rámci trim okna
   void _seekTo(double position) {
+    if (_isDisposed || _isAudioBusy) return;
     if (_currentSound == null || _totalDurationMs == 0) return;
 
     final soundData = sounds.firstWhere(
@@ -727,12 +754,14 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
 
   Future<void> _toggleLoop() async {
+    if (_isDisposed) return;
     setState(() => _isLooping = !_isLooping);
   }
 
 
 
   Future<void> _changeSpeed(double speed) async {
+    if (_isDisposed || _isAudioBusy) return;
     final currentProgress = _progressNotifier.value;
     setState(() => _playbackRate = speed);
     await _player.setPlaybackRate(speed);
@@ -764,67 +793,74 @@ class _SoundboardPageState extends State<SoundboardPage> {
   }
 
   void _stopSound({bool withFade = false}) {
-    _progressTimer?.cancel();
-    _fadeTimer?.cancel();
-    _progressNotifier.value = 0.0;
-    _totalDurationMs = 0;
-
-    if (withFade && _globalFadeOutMs > 0 && _currentSound != null) {
-      final soundData = sounds.firstWhere(
-        (s) => s['id'] == _currentSound,
-        orElse: () => <String, dynamic>{},
-      );
-      final double volume = ((soundData['volume'] as num?)?.toDouble() ?? 1.0) * _masterVolume * _masterVolume;
-
-      // Cancel any previous fade-out
-      _fadeOutTimer?.cancel();
-      _fadeOutPlayer?.stop();
-      _fadeOutPlayer?.dispose();
-      _fadeOutPlayer = null;
-      _fadeOutProgressNotifier.value = 0.0;
-
-      // Detach completion listener from old player before handing it off
-      _playerCompleteSubscription?.cancel();
-      _playerCompleteSubscription = null;
-
-      final fadingSound = _currentSound!;
-      setState(() {
-        _currentSound = null;
-        _isLooping = false;
-        _fadingOutSound = fadingSound;
-      });
-
-      // Hand off current player to fade-out slot; fresh player is ready for next sound
-      _fadeOutPlayer = _player;
-      _player = AudioPlayer();
-      _attachPlayerCompleteListener(_player);
-
-      final fadeStart = DateTime.now();
-      _fadeOutTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
-        if (!mounted) { timer.cancel(); return; }
-        final elapsed = DateTime.now().difference(fadeStart).inMilliseconds;
-        final progress = (elapsed / _globalFadeOutMs).clamp(0.0, 1.0);
-        _fadeOutPlayer?.setVolume(volume * (1.0 - progress));
-        _fadeOutProgressNotifier.value = progress;
-        if (progress >= 1.0) {
-          timer.cancel();
-          _fadeOutPlayer?.stop();
-          _fadeOutPlayer?.dispose();
-          _fadeOutPlayer = null;
-          if (mounted) setState(() => _fadingOutSound = null);
-        }
-      });
-    } else {
-      // Immediate stop — cancel any ongoing fade-out too
+    if (_isDisposed) return;
+    _isAudioBusy = true;
+    try {
+      _progressTimer?.cancel();
+      _fadeTimer?.cancel();
       _fadeOutTimer?.cancel();
       _fadeOutTimer = null;
-      _fadeOutPlayer?.stop();
-      _fadeOutPlayer?.dispose();
-      _fadeOutPlayer = null;
-      _fadeOutProgressNotifier.value = 0.0;
-      _player.stop().then((_) {
+      _progressNotifier.value = 0.0;
+      _totalDurationMs = 0;
+
+      if (withFade && _globalFadeOutMs > 0 && _currentSound != null) {
+        final soundData = sounds.firstWhere(
+          (s) => s['id'] == _currentSound,
+          orElse: () => <String, dynamic>{},
+        );
+        final double volume = ((soundData['volume'] as num?)?.toDouble() ?? 1.0) * _masterVolume * _masterVolume;
+
+        // Zruš predchádzajúci fade-out player bezpečne
+        final oldFadePlayer = _fadeOutPlayer;
+        _fadeOutPlayer = null;
+        oldFadePlayer?.stop();
+        oldFadePlayer?.dispose();
+        _fadeOutProgressNotifier.value = 0.0;
+
+        _playerCompleteSubscription?.cancel();
+        _playerCompleteSubscription = null;
+
+        final fadingSound = _currentSound!;
+        setState(() {
+          _currentSound = null;
+          _isLooping = false;
+          _fadingOutSound = fadingSound;
+        });
+
+        // Odovzdaj aktuálny player do fade-out slotu, vytvor nový pre ďalší zvuk
+        _fadeOutPlayer = _player;
+        _player = AudioPlayer();
+        _attachPlayerCompleteListener(_player);
+
+        // Zachyť referenciu na fade-out player lokálne — timer NIKDY nepoužíva _fadeOutPlayer priamo
+        final playerToFade = _fadeOutPlayer!;
+        final fadeStart = DateTime.now();
+        _fadeOutTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+          if (_isDisposed || !mounted) { timer.cancel(); return; }
+          final elapsed = DateTime.now().difference(fadeStart).inMilliseconds;
+          final progress = (elapsed / _globalFadeOutMs).clamp(0.0, 1.0);
+          playerToFade.setVolume(volume * (1.0 - progress));
+          _fadeOutProgressNotifier.value = progress;
+          if (progress >= 1.0) {
+            timer.cancel();
+            playerToFade.stop();
+            playerToFade.dispose();
+            // Vyčisti _fadeOutPlayer iba ak stále ukazuje na ten istý player
+            if (_fadeOutPlayer == playerToFade) _fadeOutPlayer = null;
+            if (mounted) setState(() => _fadingOutSound = null);
+          }
+        });
+      } else {
+        final oldFadePlayer = _fadeOutPlayer;
+        _fadeOutPlayer = null;
+        oldFadePlayer?.stop();
+        oldFadePlayer?.dispose();
+        _fadeOutProgressNotifier.value = 0.0;
+        _player.stop();
         if (mounted) setState(() { _currentSound = null; _isLooping = false; _fadingOutSound = null; });
-      });
+      }
+    } finally {
+      _isAudioBusy = false;
     }
   }
   // Funkcia na aktualizáciu zvuku
@@ -1141,6 +1177,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
   }
 
   void _toggleShufflePlay() {
+    if (_isDisposed) return;
     final enabling = !_isShufflePlay;
     setState(() => _isShufflePlay = enabling);
 
@@ -1163,6 +1200,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
   }
 
   void _playRandomSound() {
+    if (_isDisposed || _isAudioBusy) return;
     if (_cachedFilteredSounds.isEmpty) return;
     if (_currentSound != null || _fadeOutPlayer != null) return;
 
@@ -1173,6 +1211,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _progressTimer?.cancel();
     _debounceTimer?.cancel();
     _shuffleTimer?.cancel();
