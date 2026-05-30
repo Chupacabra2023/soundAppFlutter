@@ -7,11 +7,14 @@ class LanguagePickerPage extends StatelessWidget {
 
   static const _languages = [
     ('🇬🇧', 'en'),
-    ('🇸🇰', 'sk'),
+    ('🇧🇷', 'pt'),
     ('🇪🇸', 'es'),
     ('🇫🇷', 'fr'),
     ('🇩🇪', 'de'),
+    ('🇮🇹', 'it'),
+    ('🇮🇩', 'id'),
     ('🇷🇺', 'ru'),
+    ('🇯🇵', 'ja'),
   ];
 
   @override

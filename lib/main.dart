@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -24,6 +25,16 @@ import 'package:file_picker/file_picker.dart';
 String _encodeJson(Map<String, dynamic> data) => jsonEncode(data);
 Map<String, dynamic> _decodeJson(String content) =>
     Map<String, dynamic>.from(jsonDecode(content) as Map);
+
+// Spustí ZIP encoding v background isolate — blokuje CPU, nie UI thread
+Uint8List _buildZip(Map<String, List<int>> files) {
+  final archive = Archive();
+  for (final entry in files.entries) {
+    final bytes = entry.value;
+    archive.addFile(ArchiveFile(entry.key, bytes.length, bytes));
+  }
+  return Uint8List.fromList(ZipEncoder().encode(archive)!);
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -163,11 +174,14 @@ class _MyAppState extends State<MyApp> {
       ],
       supportedLocales: const [
         Locale('en'),
-        Locale('sk'),
+        Locale('pt'),
         Locale('es'),
         Locale('fr'),
         Locale('de'),
+        Locale('it'),
+        Locale('id'),
         Locale('ru'),
+        Locale('ja'),
       ],
       home: _isFirstLaunch == null
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
@@ -903,44 +917,49 @@ class _SoundboardPageState extends State<SoundboardPage> {
   Future<void> _exportSounds() async {
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final archive = Archive();
+      final fileMap = <String, List<int>>{};
 
-      // Pridaj sounds.json
+      // Načítaj sounds.json
       final jsonFile = File('${dir.path}/sounds.json');
       if (await jsonFile.exists()) {
-        final jsonBytes = await jsonFile.readAsBytes();
-        archive.addFile(ArchiveFile('sounds.json', jsonBytes.length, jsonBytes));
+        fileMap['sounds.json'] = await jsonFile.readAsBytes();
       }
 
-      // Pridaj všetky audio súbory
-      for (final sound in sounds) {
-        final name = sound['name'] as String?;
-        if (name == null) continue;
-        final audioFile = File('${dir.path}/$name');
-        if (await audioFile.exists()) {
-          final bytes = await audioFile.readAsBytes();
-          archive.addFile(ArchiveFile(name, bytes.length, bytes));
-        }
-      }
+      // Načítaj všetky audio súbory paralelne
+      await Future.wait(
+        sounds.map((sound) async {
+          final name = sound['name'] as String?;
+          if (name == null) return;
+          final audioFile = File('${dir.path}/$name');
+          if (await audioFile.exists()) {
+            fileMap[name] = await audioFile.readAsBytes();
+          }
+        }),
+        eagerError: false,
+      );
 
-      final zipBytes = ZipEncoder().encode(archive)!;
+      // ZIP encoding v background isolate — neblokuje UI
+      final zipBytes = await compute(_buildZip, fileMap);
 
-      final selectedDir = await FilePicker.platform.getDirectoryPath();
-      if (selectedDir == null) return;
-
-      final zipFile = File('$selectedDir/soundboard_backup.zip');
-      await zipFile.writeAsBytes(zipBytes);
+      final savedPath = await FilePicker.platform.saveFile(
+        dialogTitle: AppLocalizations.of(context).get('exportSounds'),
+        fileName: 'soundboard_backup.zip',
+        bytes: Uint8List.fromList(zipBytes),
+      );
+      if (savedPath == null) return;
 
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('✅ Uložené: ${zipFile.path}')),
+          SnackBar(content: Text('✅ ${l10n.get('exportSaved')}$savedPath')),
         );
       }
     } catch (e) {
       debugPrint('Export error: $e');
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ Export zlyhal: $e')),
+          SnackBar(content: Text('❌ ${l10n.get('exportFailed')}$e')),
         );
       }
     }
@@ -971,6 +990,12 @@ class _SoundboardPageState extends State<SoundboardPage> {
       setState(() {});
     } catch (e) {
       debugPrint('Import error: $e');
+      if (mounted) {
+        final l10n = AppLocalizations.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ ${l10n.get('importFailed')}$e')),
+        );
+      }
     }
   }
 
@@ -983,14 +1008,14 @@ class _SoundboardPageState extends State<SoundboardPage> {
     try {
       final dir = await getApplicationDocumentsDirectory();
 
-      // Vymaž všetky audio súbory
-      for (var sound in sounds) {
-        final filePath = '${dir.path}/${sound['name']}';
-        final file = File(filePath);
-        if (await file.exists()) {
-          await file.delete();
-        }
-      }
+      // Vymaž všetky audio súbory paralelne
+      await Future.wait(
+        sounds.map((sound) async {
+          final file = File('${dir.path}/${sound['name']}');
+          if (await file.exists()) await file.delete();
+        }),
+        eagerError: false,
+      );
 
       // Vymaž JSON
       final jsonFile = File('${dir.path}/sounds.json');
@@ -1629,19 +1654,21 @@ class _SoundboardPageState extends State<SoundboardPage> {
                             data: SliderThemeData(
                               trackHeight: isTablet ? 10.0 : 6.0,
                               thumbShape: RoundSliderThumbShape(enabledThumbRadius: isTablet ? 12.0 : 8.0),
-                              overlayShape: RoundSliderOverlayShape(overlayRadius: isTablet ? 20.0 : 14.0),
+                              overlayShape: SliderComponentShape.noOverlay,
                               activeTrackColor: Colors.blueAccent,
                               inactiveTrackColor: Colors.grey.shade300,
                               thumbColor: Colors.blueAccent,
-                              overlayColor: Colors.blueAccent.withAlpha(40),
+                              overlayColor: Colors.transparent,
                             ),
-                            child: Slider(
-                              value: progress,
-                              onChanged: _currentSound != null
-                                  ? (value) {
-                                      _seekTo(value);
-                                    }
-                                  : null,
+                            child: ExcludeFocus(
+                              child: Slider(
+                                value: progress,
+                                onChanged: _currentSound != null
+                                    ? (value) {
+                                        _seekTo(value);
+                                      }
+                                    : null,
+                              ),
                             ),
                           );
                         },

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-// import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
@@ -257,8 +257,8 @@ class _SoundSettingsSheetState extends State<_SoundSettingsSheet> {
   int? _endMs;
   int _totalDurationMs = 0;
   bool _isDurationLoading = true;
-  // BannerAd? _bannerAd;
-  // bool _isBannerLoaded = false;
+  BannerAd? _bannerAd;
+  bool _isBannerLoaded = false;
 
   late final TextEditingController _nameController;
   late final TextEditingController _startController;
@@ -282,7 +282,7 @@ class _SoundSettingsSheetState extends State<_SoundSettingsSheet> {
     _endController = TextEditingController();
 
     _fetchDuration();
-    // _loadBannerAd();
+    _loadBannerAd();
   }
 
   Future<void> _fetchDuration() async {
@@ -312,24 +312,24 @@ class _SoundSettingsSheetState extends State<_SoundSettingsSheet> {
     }
   }
 
-  // void _loadBannerAd() {
-  //   _bannerAd = BannerAd(
-  //     adUnitId: 'ca-app-pub-3948591512361475/4467483687',
-  //     size: AdSize.banner,
-  //     request: const AdRequest(),
-  //     listener: BannerAdListener(
-  //       onAdLoaded: (ad) {
-  //         if (mounted) setState(() => _isBannerLoaded = true);
-  //       },
-  //       onAdFailedToLoad: (ad, error) => ad.dispose(),
-  //     ),
-  //   );
-  //   _bannerAd?.load();
-  // }
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-3948591512361475/4467483687',
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (mounted) setState(() => _isBannerLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) => ad.dispose(),
+      ),
+    );
+    _bannerAd?.load();
+  }
 
   @override
   void dispose() {
-    // _bannerAd?.dispose();
+    _bannerAd?.dispose();
     _nameController.dispose();
     _startController.dispose();
     _endController.dispose();
@@ -680,13 +680,13 @@ class _SoundSettingsSheetState extends State<_SoundSettingsSheet> {
 
                     const SizedBox(height: 16),
 
-                    // if (_isBannerLoaded && _bannerAd != null)
-                    //   Container(
-                    //     alignment: Alignment.center,
-                    //     width: _bannerAd!.size.width.toDouble(),
-                    //     height: _bannerAd!.size.height.toDouble(),
-                    //     child: AdWidget(ad: _bannerAd!),
-                    //   ),
+                    if (_isBannerLoaded && _bannerAd != null)
+                      Container(
+                        alignment: Alignment.center,
+                        width: _bannerAd!.size.width.toDouble(),
+                        height: _bannerAd!.size.height.toDouble(),
+                        child: AdWidget(ad: _bannerAd!),
+                      ),
                   ],
                 ),
               ),

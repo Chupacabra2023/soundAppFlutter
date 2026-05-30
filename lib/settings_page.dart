@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:android_intent_plus/android_intent.dart';
-// import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'app_localizations.dart';
 import 'main.dart';
 import 'sound_data.dart';
@@ -101,8 +101,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late int _globalFadeOutMs;
   bool _isExporting = false;
   bool _isImporting = false;
-  // BannerAd? _bannerAd;
-  // bool _isBannerAdLoaded = false;
+  BannerAd? _bannerAd;
+  bool _isBannerAdLoaded = false;
 
   @override
   void initState() {
@@ -124,30 +124,30 @@ class _SettingsPageState extends State<SettingsPage> {
     _showMasterVolume = widget.showMasterVolume;
     _globalFadeInMs = widget.globalFadeInMs;
     _globalFadeOutMs = widget.globalFadeOutMs;
-    // WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
   }
 
-  // Future<void> _loadBannerAd() async {
-  //   final width = MediaQuery.of(context).size.width.truncate();
-  //   final size = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
-  //   if (!mounted || size == null) return;
-  //   _bannerAd = BannerAd(
-  //     adUnitId: 'ca-app-pub-3948591512361475/4467483687',
-  //     size: size,
-  //     request: const AdRequest(),
-  //     listener: BannerAdListener(
-  //       onAdLoaded: (ad) {
-  //         if (mounted) setState(() => _isBannerAdLoaded = true);
-  //       },
-  //       onAdFailedToLoad: (ad, error) => ad.dispose(),
-  //     ),
-  //   );
-  //   _bannerAd?.load();
-  // }
+  Future<void> _loadBannerAd() async {
+    final width = MediaQuery.of(context).size.width.truncate();
+    final size = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
+    if (!mounted || size == null) return;
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-3948591512361475/4467483687',
+      size: size,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (mounted) setState(() => _isBannerAdLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) => ad.dispose(),
+      ),
+    );
+    _bannerAd?.load();
+  }
 
   @override
   void dispose() {
-    // _bannerAd?.dispose();
+    _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -291,12 +291,12 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: Column(
         children: [
-          // if (_isBannerAdLoaded && _bannerAd != null)
-          //   SizedBox(
-          //     width: double.infinity,
-          //     height: _bannerAd!.size.height.toDouble(),
-          //     child: AdWidget(ad: _bannerAd!),
-          //   ),
+          if (_isBannerAdLoaded && _bannerAd != null)
+            SizedBox(
+              width: double.infinity,
+              height: _bannerAd!.size.height.toDouble(),
+              child: AdWidget(ad: _bannerAd!),
+            ),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(16),
@@ -1099,63 +1099,39 @@ class _SettingsPageState extends State<SettingsPage> {
                     items: const [
                       DropdownMenuItem(
                         value: 'en',
-                        child: Row(
-                          children: [
-                            Text('🇬🇧', style: TextStyle(fontSize: 24)),
-                            SizedBox(width: 12),
-                            Text('English'),
-                          ],
-                        ),
+                        child: Row(children: [Text('🇬🇧', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('English')]),
                       ),
                       DropdownMenuItem(
-                        value: 'sk',
-                        child: Row(
-                          children: [
-                            Text('🇸🇰', style: TextStyle(fontSize: 24)),
-                            SizedBox(width: 12),
-                            Text('Slovenčina'),
-                          ],
-                        ),
+                        value: 'pt',
+                        child: Row(children: [Text('🇧🇷', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('Português')]),
                       ),
                       DropdownMenuItem(
                         value: 'es',
-                        child: Row(
-                          children: [
-                            Text('🇪🇸', style: TextStyle(fontSize: 24)),
-                            SizedBox(width: 12),
-                            Text('Español'),
-                          ],
-                        ),
+                        child: Row(children: [Text('🇪🇸', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('Español')]),
                       ),
                       DropdownMenuItem(
                         value: 'fr',
-                        child: Row(
-                          children: [
-                            Text('🇫🇷', style: TextStyle(fontSize: 24)),
-                            SizedBox(width: 12),
-                            Text('Français'),
-                          ],
-                        ),
+                        child: Row(children: [Text('🇫🇷', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('Français')]),
                       ),
                       DropdownMenuItem(
                         value: 'de',
-                        child: Row(
-                          children: [
-                            Text('🇩🇪', style: TextStyle(fontSize: 24)),
-                            SizedBox(width: 12),
-                            Text('Deutsch'),
-                          ],
-                        ),
+                        child: Row(children: [Text('🇩🇪', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('Deutsch')]),
+                      ),
+                      DropdownMenuItem(
+                        value: 'it',
+                        child: Row(children: [Text('🇮🇹', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('Italiano')]),
+                      ),
+                      DropdownMenuItem(
+                        value: 'id',
+                        child: Row(children: [Text('🇮🇩', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('Indonesia')]),
                       ),
                       DropdownMenuItem(
                         value: 'ru',
-                        child: Row(
-                          children: [
-                            Text('🇷🇺', style: TextStyle(fontSize: 24)),
-                            SizedBox(width: 12),
-                            Text('Русский'),
-                          ],
-                        ),
+                        child: Row(children: [Text('🇷🇺', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('Русский')]),
+                      ),
+                      DropdownMenuItem(
+                        value: 'ja',
+                        child: Row(children: [Text('🇯🇵', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('日本語')]),
                       ),
                     ],
                     onChanged: (String? value) {
@@ -1207,7 +1183,11 @@ class _SettingsPageState extends State<SettingsPage> {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       onPressed: () {
-                        // ConsentForm.showPrivacyOptionsForm((formError) {});
+                        ConsentForm.showPrivacyOptionsForm((formError) {
+                          if (formError != null) {
+                            debugPrint('Privacy form error: ${formError.message}');
+                          }
+                        });
                       },
                       icon: const Icon(Icons.settings),
                       label: Text(l10n.get('managePrivacy')),
