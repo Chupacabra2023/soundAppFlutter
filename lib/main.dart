@@ -1,12 +1,11 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'sound_button.dart';
 import 'settings_page.dart';
 import 'add_soud_page.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show rootBundle, MethodChannel;
 import 'package:vibration/vibration.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
@@ -18,22 +17,29 @@ import 'app_localizations.dart';
 import 'language_picker_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:reorderable_grid_view/reorderable_grid_view.dart';
-import 'package:archive/archive.dart';
+import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
+
+const _exportChannel = MethodChannel('sk.marcelsotak.soundboard/export');
 
 // Top-level functions for compute() — musia byť mimo triedy
 String _encodeJson(Map<String, dynamic> data) => jsonEncode(data);
 Map<String, dynamic> _decodeJson(String content) =>
     Map<String, dynamic>.from(jsonDecode(content) as Map);
 
-// Spustí ZIP encoding v background isolate — blokuje CPU, nie UI thread
-Uint8List _buildZip(Map<String, List<int>> files) {
-  final archive = Archive();
-  for (final entry in files.entries) {
-    final bytes = entry.value;
-    archive.addFile(ArchiveFile(entry.key, bytes.length, bytes));
+// Zapíše ZIP priamo na disk, súbor po súbore (streamovane), v background isolate.
+// Nikdy nedrží všetky súbory naraz v pamäti a neposiela bajty cez platform channel.
+Future<void> _buildZipFile((String, List<String>) args) async {
+  final (destPath, sourcePaths) = args;
+  final encoder = ZipFileEncoder();
+  encoder.create(destPath);
+  for (final path in sourcePaths) {
+    final file = File(path);
+    if (await file.exists()) {
+      await encoder.addFile(file, file.uri.pathSegments.last);
+    }
   }
-  return Uint8List.fromList(ZipEncoder().encode(archive)!);
+  await encoder.close();
 }
 
 void main() async {
@@ -202,6 +208,9 @@ class SoundboardPage extends StatefulWidget {
 class _SoundboardPageState extends State<SoundboardPage> {
   bool _isAudioBusy = false;
   bool _isDisposed = false;
+
+  // BannerAd? _bannerAd;
+  // bool _isBannerAdLoaded = false;
 
   AudioPlayer _player = AudioPlayer();
   AudioPlayer? _fadeOutPlayer;
@@ -474,7 +483,22 @@ class _SoundboardPageState extends State<SoundboardPage> {
   void initState() {
     super.initState();
     _initializeApp();
+    // WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
   }
+
+  // void _loadBannerAd() {
+  //   _bannerAd = BannerAd(
+  //     adUnitId: 'ca-app-pub-3948591512361475/2157186201',
+  //     size: AdSize.banner,
+  //     request: const AdRequest(),
+  //     listener: BannerAdListener(
+  //       onAdLoaded: (ad) {
+  //         if (mounted) setState(() => _isBannerAdLoaded = true);
+  //       },
+  //       onAdFailedToLoad: (ad, error) => ad.dispose(),
+  //     ),
+  //   )..load();
+  // }
 
   Future<void> _initializeApp() async {
     final prefs = await SharedPreferences.getInstance();
@@ -606,7 +630,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
       // fire-and-forget: these don't need to complete before play
       unawaited(_player.setPlaybackRate(_playbackRate));
-      unawaited(_player.setReleaseMode(ReleaseMode.release));
+      unawaited(_player.setReleaseMode(ReleaseMode.stop));
       unawaited(_player.setVolume(fadeInMs > 0 ? 0.0 : volume));
 
       final dir = await getApplicationDocumentsDirectory();
@@ -917,36 +941,55 @@ class _SoundboardPageState extends State<SoundboardPage> {
   Future<void> _exportSounds() async {
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final fileMap = <String, List<int>>{};
 
-      // Načítaj sounds.json
+      // Zozbieraj len cesty k súborom (malé dáta) — obsah súborov sa nikdy
+      // nenačítava naraz do pamäte.
+      final sourcePaths = <String>[];
       final jsonFile = File('${dir.path}/sounds.json');
       if (await jsonFile.exists()) {
-        fileMap['sounds.json'] = await jsonFile.readAsBytes();
+        sourcePaths.add(jsonFile.path);
+      }
+      for (final sound in sounds) {
+        final name = sound['name'] as String?;
+        if (name == null) continue;
+        final audioFile = File('${dir.path}/$name');
+        if (await audioFile.exists()) {
+          sourcePaths.add(audioFile.path);
+        }
       }
 
-      // Načítaj všetky audio súbory paralelne
-      await Future.wait(
-        sounds.map((sound) async {
-          final name = sound['name'] as String?;
-          if (name == null) return;
-          final audioFile = File('${dir.path}/$name');
-          if (await audioFile.exists()) {
-            fileMap[name] = await audioFile.readAsBytes();
-          }
-        }),
-        eagerError: false,
-      );
+      // ZIP sa zapisuje priamo na disk súbor po súbore v background isolate —
+      // neblokuje UI a nedrží celú knižnicu naraz v RAM.
+      final tempDir = await getTemporaryDirectory();
+      final destPath = '${tempDir.path}/soundboard_backup.zip';
+      await compute(_buildZipFile, (destPath, sourcePaths));
 
-      // ZIP encoding v background isolate — neblokuje UI
-      final zipBytes = await compute(_buildZip, fileMap);
+      if (!mounted) return;
 
-      final savedPath = await FilePicker.platform.saveFile(
-        dialogTitle: AppLocalizations.of(context).get('exportSounds'),
-        fileName: 'soundboard_backup.zip',
-        bytes: Uint8List.fromList(zipBytes),
-      );
-      if (savedPath == null) return;
+      String? savedPath;
+      if (Platform.isAndroid) {
+        // Natívny SAF zápis na background vlákne — appka nikdy nenačíta
+        // celý zip do Dart pamäte a zápis neblokuje UI vlákno bez ohľadu
+        // na veľkosť knižnice.
+        final uriString = await _exportChannel.invokeMethod<String>(
+          'createDocument',
+          {'fileName': 'soundboard_backup.zip', 'mimeType': 'application/zip'},
+        );
+        if (uriString == null) return;
+        await _exportChannel.invokeMethod('writeFile', {
+          'uri': uriString,
+          'sourcePath': destPath,
+        });
+        savedPath = uriString;
+      } else {
+        final zipBytes = await File(destPath).readAsBytes();
+        savedPath = await FilePicker.platform.saveFile(
+          dialogTitle: AppLocalizations.of(context).get('exportSounds'),
+          fileName: 'soundboard_backup.zip',
+          bytes: zipBytes,
+        );
+        if (savedPath == null) return;
+      }
 
       if (mounted) {
         final l10n = AppLocalizations.of(context);
@@ -1248,6 +1291,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
     _progressNotifier.dispose();
     _fadeOutProgressNotifier.dispose();
     _searchController.dispose();
+    // _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -1897,6 +1941,16 @@ class _SoundboardPageState extends State<SoundboardPage> {
                   ),
                 ),
               ),
+              // if (_isBannerAdLoaded && _bannerAd != null)
+              //   SafeArea(
+              //     top: false,
+              //     child: Container(
+              //       alignment: Alignment.center,
+              //       width: _bannerAd!.size.width.toDouble(),
+              //       height: _bannerAd!.size.height.toDouble(),
+              //       child: AdWidget(ad: _bannerAd!),
+              //     ),
+              //   ),
             ],
           ),
 

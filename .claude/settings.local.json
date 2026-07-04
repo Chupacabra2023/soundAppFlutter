@@ -36,7 +36,19 @@
       "Bash(findstr /i \"google_mobile\")",
       "Bash(curl -s \"https://pub.dev/packages/google_mobile_ads/changelog\")",
       "Bash(flutter --version)",
-      "Bash(flutter upgrade *)"
+      "Bash(flutter upgrade *)",
+      "Read(//c/Users/marma/AppData/Local/Pub/Cache/hosted/pub.dev/share_plus-10.1.4/lib/**)",
+      "Bash(xargs grep -ln \"shareXFiles\\\\|class Share \")",
+      "Bash(xargs grep -ln \"getUriForFile\\\\|copyToShareCache\\\\|cache\")",
+      "Bash(xargs grep -ln \"saveFile\\\\|SAVE\")",
+      "Bash(adb -s FU5D85TKJJWCX4XG shell input swipe 600 2400 600 400 300)",
+      "Bash(adb -s FU5D85TKJJWCX4XG exec-out screencap -p)",
+      "Bash(adb -s FU5D85TKJJWCX4XG shell input swipe 600 900 600 1900 400)",
+      "Bash(adb -s FU5D85TKJJWCX4XG logcat -c)",
+      "Bash(adb -s FU5D85TKJJWCX4XG shell input tap 610 780)",
+      "Bash(adb -s FU5D85TKJJWCX4XG shell pidof sk.marcelsotak.soundboard)",
+      "Bash(adb -s FU5D85TKJJWCX4XG shell input tap 1045 1620)",
+      "Bash(adb -s FU5D85TKJJWCX4XG logcat -d -v time *:E)"
     ]
   }
 }
