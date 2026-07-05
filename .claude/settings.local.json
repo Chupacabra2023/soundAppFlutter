@@ -48,7 +48,8 @@
       "Bash(adb -s FU5D85TKJJWCX4XG shell input tap 610 780)",
       "Bash(adb -s FU5D85TKJJWCX4XG shell pidof sk.marcelsotak.soundboard)",
       "Bash(adb -s FU5D85TKJJWCX4XG shell input tap 1045 1620)",
-      "Bash(adb -s FU5D85TKJJWCX4XG logcat -d -v time *:E)"
+      "Bash(adb -s FU5D85TKJJWCX4XG logcat -d -v time *:E)",
+      "PowerShell(flutter analyze *)"
     ]
   }
 }

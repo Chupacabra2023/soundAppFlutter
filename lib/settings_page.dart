@@ -4,6 +4,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'app_localizations.dart';
 import 'main.dart';
 import 'sound_data.dart';
+import 'ads_service.dart';
 
 class SettingsPage extends StatefulWidget {
   final List<String> categories;
@@ -101,8 +102,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late int _globalFadeOutMs;
   bool _isExporting = false;
   bool _isImporting = false;
-  // BannerAd? _bannerAd;
-  // bool _isBannerAdLoaded = false;
+  BannerAd? _bannerAd;
+  bool _isBannerAdLoaded = false;
 
   @override
   void initState() {
@@ -124,31 +125,71 @@ class _SettingsPageState extends State<SettingsPage> {
     _showMasterVolume = widget.showMasterVolume;
     _globalFadeInMs = widget.globalFadeInMs;
     _globalFadeOutMs = widget.globalFadeOutMs;
-    // WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
+    if (!AdsService.instance.adsRemoved.value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
+    }
+    AdsService.instance.adsRemoved.addListener(_onAdsRemovedChanged);
   }
 
-  // Future<void> _loadBannerAd() async {
-  //   final width = MediaQuery.of(context).size.width.truncate();
-  //   final size = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
-  //   if (!mounted || size == null) return;
-  //   _bannerAd = BannerAd(
-  //     adUnitId: 'ca-app-pub-3948591512361475/4467483687',
-  //     size: size,
-  //     request: const AdRequest(),
-  //     listener: BannerAdListener(
-  //       onAdLoaded: (ad) {
-  //         if (mounted) setState(() => _isBannerAdLoaded = true);
-  //       },
-  //       onAdFailedToLoad: (ad, error) => ad.dispose(),
-  //     ),
-  //   );
-  //   _bannerAd?.load();
-  // }
+  void _onAdsRemovedChanged() {
+    if (AdsService.instance.adsRemoved.value && mounted) {
+      final ad = _bannerAd;
+      _bannerAd = null;
+      setState(() => _isBannerAdLoaded = false);
+      ad?.dispose();
+    }
+  }
+
+  Future<void> _loadBannerAd() async {
+    final width = MediaQuery.of(context).size.width.truncate();
+    final size = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
+    if (!mounted || size == null) return;
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-3948591512361475/4467483687',
+      size: size,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (mounted) setState(() => _isBannerAdLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) => ad.dispose(),
+      ),
+    );
+    _bannerAd?.load();
+  }
 
   @override
   void dispose() {
-    // _bannerAd?.dispose();
+    AdsService.instance.adsRemoved.removeListener(_onAdsRemovedChanged);
+    _bannerAd?.dispose();
     super.dispose();
+  }
+
+  Future<void> _buyRemoveAds() async {
+    final l10n = AppLocalizations.of(context);
+    if (AdsService.instance.removeAdsProduct == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.get('purchaseUnavailable'))),
+      );
+      return;
+    }
+    await AdsService.instance.buyRemoveAds();
+  }
+
+  Future<void> _restorePurchases() async {
+    final l10n = AppLocalizations.of(context);
+    await AdsService.instance.restorePurchases();
+    await Future.delayed(const Duration(milliseconds: 1200));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          AdsService.instance.adsRemoved.value
+              ? l10n.get('purchaseRestored')
+              : l10n.get('noPurchasesToRestore'),
+        ),
+      ),
+    );
   }
 
   Widget _toolbarToggleRow(IconData icon, String label, bool value, ValueChanged<bool> onChanged) {
@@ -291,12 +332,12 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: Column(
         children: [
-          // if (_isBannerAdLoaded && _bannerAd != null)
-          //   SizedBox(
-          //     width: double.infinity,
-          //     height: _bannerAd!.size.height.toDouble(),
-          //     child: AdWidget(ad: _bannerAd!),
-          //   ),
+          if (_isBannerAdLoaded && _bannerAd != null)
+            SizedBox(
+              width: double.infinity,
+              height: _bannerAd!.size.height.toDouble(),
+              child: AdWidget(ad: _bannerAd!),
+            ),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(16),
@@ -1060,6 +1101,92 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
 
           const SizedBox(height: 24),
+
+          // 🚫 Remove Ads Section
+          AnimatedBuilder(
+            animation: Listenable.merge([
+              AdsService.instance.adsRemoved,
+              AdsService.instance.purchaseInProgress,
+            ]),
+            builder: (context, _) {
+              final removed = AdsService.instance.adsRemoved.value;
+              final busy = AdsService.instance.purchaseInProgress.value;
+              final product = AdsService.instance.removeAdsProduct;
+              return Column(
+                children: [
+                  Card(
+                    elevation: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.block, color: Colors.blueGrey[800]),
+                              const SizedBox(width: 12),
+                              Text(
+                                l10n.get('removeAds'),
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            removed
+                                ? l10n.get('removeAdsPurchased')
+                                : l10n.get('removeAdsDescription'),
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                          if (!removed) ...[
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blueGrey[800],
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                ),
+                                onPressed: busy ? null : _buyRemoveAds,
+                                icon: busy
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Icon(Icons.shopping_cart),
+                                label: Text(
+                                  busy
+                                      ? l10n.get('purchasePending')
+                                      : '${l10n.get('buy')}${product != null ? ' (${product.price})' : ''}',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: TextButton(
+                                onPressed: busy ? null : _restorePurchases,
+                                child: Text(l10n.get('restorePurchases')),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              );
+            },
+          ),
 
           // 🌍 Language Selection Section
           Card(

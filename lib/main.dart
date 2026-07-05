@@ -19,6 +19,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:reorderable_grid_view/reorderable_grid_view.dart';
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
+import 'ads_service.dart';
 
 const _exportChannel = MethodChannel('sk.marcelsotak.soundboard/export');
 
@@ -46,6 +47,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MobileAds.instance.initialize();
   _initializeConsent();
+  AdsService.instance.init();
   runApp(const MyApp());
 }
 
@@ -209,8 +211,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
   bool _isAudioBusy = false;
   bool _isDisposed = false;
 
-  // BannerAd? _bannerAd;
-  // bool _isBannerAdLoaded = false;
+  BannerAd? _bannerAd;
+  bool _isBannerAdLoaded = false;
 
   AudioPlayer _player = AudioPlayer();
   AudioPlayer? _fadeOutPlayer;
@@ -483,22 +485,34 @@ class _SoundboardPageState extends State<SoundboardPage> {
   void initState() {
     super.initState();
     _initializeApp();
-    // WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
+    if (!AdsService.instance.adsRemoved.value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
+    }
+    AdsService.instance.adsRemoved.addListener(_onAdsRemovedChanged);
   }
 
-  // void _loadBannerAd() {
-  //   _bannerAd = BannerAd(
-  //     adUnitId: 'ca-app-pub-3948591512361475/2157186201',
-  //     size: AdSize.banner,
-  //     request: const AdRequest(),
-  //     listener: BannerAdListener(
-  //       onAdLoaded: (ad) {
-  //         if (mounted) setState(() => _isBannerAdLoaded = true);
-  //       },
-  //       onAdFailedToLoad: (ad, error) => ad.dispose(),
-  //     ),
-  //   )..load();
-  // }
+  void _onAdsRemovedChanged() {
+    if (AdsService.instance.adsRemoved.value && mounted) {
+      final ad = _bannerAd;
+      _bannerAd = null;
+      setState(() => _isBannerAdLoaded = false);
+      ad?.dispose();
+    }
+  }
+
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-3948591512361475/2157186201',
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (mounted) setState(() => _isBannerAdLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) => ad.dispose(),
+      ),
+    )..load();
+  }
 
   Future<void> _initializeApp() async {
     final prefs = await SharedPreferences.getInstance();
@@ -1291,7 +1305,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
     _progressNotifier.dispose();
     _fadeOutProgressNotifier.dispose();
     _searchController.dispose();
-    // _bannerAd?.dispose();
+    AdsService.instance.adsRemoved.removeListener(_onAdsRemovedChanged);
+    _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -1941,16 +1956,16 @@ class _SoundboardPageState extends State<SoundboardPage> {
                   ),
                 ),
               ),
-              // if (_isBannerAdLoaded && _bannerAd != null)
-              //   SafeArea(
-              //     top: false,
-              //     child: Container(
-              //       alignment: Alignment.center,
-              //       width: _bannerAd!.size.width.toDouble(),
-              //       height: _bannerAd!.size.height.toDouble(),
-              //       child: AdWidget(ad: _bannerAd!),
-              //     ),
-              //   ),
+              if (_isBannerAdLoaded && _bannerAd != null)
+                SafeArea(
+                  top: false,
+                  child: Container(
+                    alignment: Alignment.center,
+                    width: _bannerAd!.size.width.toDouble(),
+                    height: _bannerAd!.size.height.toDouble(),
+                    child: AdWidget(ad: _bannerAd!),
+                  ),
+                ),
             ],
           ),
 

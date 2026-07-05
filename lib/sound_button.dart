@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'sound_data.dart';
 import 'app_localizations.dart';
+import 'ads_service.dart';
 
 const _kButtonBorderRadius = BorderRadius.all(Radius.circular(12));
 const _kBottomBorderRadius = BorderRadius.vertical(bottom: Radius.circular(12));
@@ -257,8 +258,8 @@ class _SoundSettingsSheetState extends State<_SoundSettingsSheet> {
   int? _endMs;
   int _totalDurationMs = 0;
   bool _isDurationLoading = true;
-  // BannerAd? _bannerAd;
-  // bool _isBannerLoaded = false;
+  BannerAd? _bannerAd;
+  bool _isBannerLoaded = false;
 
   late final TextEditingController _nameController;
   late final TextEditingController _startController;
@@ -282,7 +283,19 @@ class _SoundSettingsSheetState extends State<_SoundSettingsSheet> {
     _endController = TextEditingController();
 
     _fetchDuration();
-    // _loadBannerAd();
+    if (!AdsService.instance.adsRemoved.value) {
+      _loadBannerAd();
+    }
+    AdsService.instance.adsRemoved.addListener(_onAdsRemovedChanged);
+  }
+
+  void _onAdsRemovedChanged() {
+    if (AdsService.instance.adsRemoved.value && mounted) {
+      final ad = _bannerAd;
+      _bannerAd = null;
+      setState(() => _isBannerLoaded = false);
+      ad?.dispose();
+    }
   }
 
   Future<void> _fetchDuration() async {
@@ -312,24 +325,25 @@ class _SoundSettingsSheetState extends State<_SoundSettingsSheet> {
     }
   }
 
-  // void _loadBannerAd() {
-  //   _bannerAd = BannerAd(
-  //     adUnitId: 'ca-app-pub-3948591512361475/4467483687',
-  //     size: AdSize.banner,
-  //     request: const AdRequest(),
-  //     listener: BannerAdListener(
-  //       onAdLoaded: (ad) {
-  //         if (mounted) setState(() => _isBannerLoaded = true);
-  //       },
-  //       onAdFailedToLoad: (ad, error) => ad.dispose(),
-  //     ),
-  //   );
-  //   _bannerAd?.load();
-  // }
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-3948591512361475/4467483687',
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (mounted) setState(() => _isBannerLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) => ad.dispose(),
+      ),
+    );
+    _bannerAd?.load();
+  }
 
   @override
   void dispose() {
-    // _bannerAd?.dispose();
+    AdsService.instance.adsRemoved.removeListener(_onAdsRemovedChanged);
+    _bannerAd?.dispose();
     _nameController.dispose();
     _startController.dispose();
     _endController.dispose();
@@ -680,13 +694,13 @@ class _SoundSettingsSheetState extends State<_SoundSettingsSheet> {
 
                     const SizedBox(height: 16),
 
-                    // if (_isBannerLoaded && _bannerAd != null)
-                    //   Container(
-                    //     alignment: Alignment.center,
-                    //     width: _bannerAd!.size.width.toDouble(),
-                    //     height: _bannerAd!.size.height.toDouble(),
-                    //     child: AdWidget(ad: _bannerAd!),
-                    //   ),
+                    if (_isBannerLoaded && _bannerAd != null)
+                      Container(
+                        alignment: Alignment.center,
+                        width: _bannerAd!.size.width.toDouble(),
+                        height: _bannerAd!.size.height.toDouble(),
+                        child: AdWidget(ad: _bannerAd!),
+                      ),
                   ],
                 ),
               ),
