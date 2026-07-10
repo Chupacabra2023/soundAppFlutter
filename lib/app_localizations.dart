@@ -91,6 +91,12 @@ class AppLocalizations {
       'purchasePending': 'Processing purchase...',
       'purchaseUnavailable': 'Purchases are not available right now',
       'purchaseRestored': 'Purchases restored',
+      'whiteNoise': 'Anti-click noise',
+      'whiteNoiseDescription':
+          'Some wired speakers click at the start of every sound because the sound card goes to sleep between plays. Playing a quiet constant noise keeps it awake and prevents the click.',
+      'whiteNoiseOff': 'Off',
+      'whiteNoiseWiredOnly': 'When cable connected',
+      'whiteNoiseAlways': 'Always',
       'noPurchasesToRestore': 'No previous purchase found',
       'volume': 'Volume',
       'everything': 'Everything',

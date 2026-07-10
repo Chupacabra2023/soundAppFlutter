@@ -283,14 +283,14 @@ class _SoundSettingsSheetState extends State<_SoundSettingsSheet> {
     _endController = TextEditingController();
 
     _fetchDuration();
-    if (!AdsService.instance.adsRemoved.value) {
+    if (AdsService.instance.shouldShowAds) {
       _loadBannerAd();
     }
     AdsService.instance.adsRemoved.addListener(_onAdsRemovedChanged);
   }
 
   void _onAdsRemovedChanged() {
-    if (AdsService.instance.adsRemoved.value && mounted) {
+    if (!AdsService.instance.shouldShowAds && mounted) {
       final ad = _bannerAd;
       _bannerAd = null;
       setState(() => _isBannerLoaded = false);

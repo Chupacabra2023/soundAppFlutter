@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "863351946658",
+    "project_id": "soundboardstudio",
+    "storage_bucket": "soundboardstudio.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:863351946658:android:3e072879e9b88be3c986fb",
+        "android_client_info": {
+          "package_name": "sk.marcelsotak.soundboard"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAx_X5Io44zYjYNW3BNSB1I5gt-yPQ4hLY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

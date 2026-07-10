@@ -49,7 +49,11 @@
       "Bash(adb -s FU5D85TKJJWCX4XG shell pidof sk.marcelsotak.soundboard)",
       "Bash(adb -s FU5D85TKJJWCX4XG shell input tap 1045 1620)",
       "Bash(adb -s FU5D85TKJJWCX4XG logcat -d -v time *:E)",
-      "PowerShell(flutter analyze *)"
+      "PowerShell(flutter analyze *)",
+      "Bash(firebase projects:list *)",
+      "Bash(flutterfire configure *)",
+      "Bash(flutterfire.bat configure *)",
+      "Bash(./gradlew -q :app:properties)"
     ]
   }
 }

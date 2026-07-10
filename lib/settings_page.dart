@@ -5,6 +5,7 @@ import 'app_localizations.dart';
 import 'main.dart';
 import 'sound_data.dart';
 import 'ads_service.dart';
+import 'white_noise_service.dart';
 
 class SettingsPage extends StatefulWidget {
   final List<String> categories;
@@ -125,14 +126,14 @@ class _SettingsPageState extends State<SettingsPage> {
     _showMasterVolume = widget.showMasterVolume;
     _globalFadeInMs = widget.globalFadeInMs;
     _globalFadeOutMs = widget.globalFadeOutMs;
-    if (!AdsService.instance.adsRemoved.value) {
+    if (AdsService.instance.shouldShowAds) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
     }
     AdsService.instance.adsRemoved.addListener(_onAdsRemovedChanged);
   }
 
   void _onAdsRemovedChanged() {
-    if (AdsService.instance.adsRemoved.value && mounted) {
+    if (!AdsService.instance.shouldShowAds && mounted) {
       final ad = _bannerAd;
       _bannerAd = null;
       setState(() => _isBannerAdLoaded = false);
@@ -142,7 +143,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _loadBannerAd() async {
     final width = MediaQuery.of(context).size.width.truncate();
-    final size = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
+    final size =
+        await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
     if (!mounted || size == null) return;
     _bannerAd = BannerAd(
       adUnitId: 'ca-app-pub-3948591512361475/4467483687',
@@ -192,7 +194,8 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _toolbarToggleRow(IconData icon, String label, bool value, ValueChanged<bool> onChanged) {
+  Widget _toolbarToggleRow(
+      IconData icon, String label, bool value, ValueChanged<bool> onChanged) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -226,7 +229,8 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               Text(
                 category,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               Wrap(
@@ -252,11 +256,17 @@ class _SettingsPageState extends State<SettingsPage> {
                             ? Border.all(color: Colors.white, width: 3)
                             : null,
                         boxShadow: isSelected
-                            ? [BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 6, spreadRadius: 1)]
+                            ? [
+                                BoxShadow(
+                                    color: color.withValues(alpha: 0.6),
+                                    blurRadius: 6,
+                                    spreadRadius: 1)
+                              ]
                             : null,
                       ),
                       child: isSelected
-                          ? const Icon(Icons.check, color: Colors.white, size: 18)
+                          ? const Icon(Icons.check,
+                              color: Colors.white, size: 18)
                           : null,
                     ),
                   );
@@ -342,320 +352,275 @@ class _SettingsPageState extends State<SettingsPage> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-          // 🎛️ Display Options Section
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.visibility_outlined, color: Colors.blueGrey[800]),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                // 🎛️ Display Options Section
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            Text(
-                              l10n.get('displayOptions'),
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              l10n.get('displayOptionsDesc'),
-                              style: const TextStyle(color: Colors.grey, fontSize: 13),
+                            Icon(Icons.visibility_outlined,
+                                color: Colors.blueGrey[800]),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    l10n.get('displayOptions'),
+                                    style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    l10n.get('displayOptionsDesc'),
+                                    style: const TextStyle(
+                                        color: Colors.grey, fontSize: 13),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  _buildSubToggle(
-                    icon: Icons.star_border,
-                    title: l10n.get('hideFavoriteButton'),
-                    value: _hideFavorite,
-                    onChanged: (v) {
-                      setState(() => _hideFavorite = v);
-                      widget.onToggleHideFavorite(v);
-                    },
-                  ),
-                  _buildSubToggle(
-                    icon: Icons.settings_outlined,
-                    title: l10n.get('hideSettingsButton'),
-                    value: _hideSettingsBtn,
-                    onChanged: (v) {
-                      setState(() => _hideSettingsBtn = v);
-                      widget.onToggleHideSettingsBtn(v);
-                    },
-                  ),
-                  _buildSubToggle(
-                    icon: Icons.label_off_outlined,
-                    title: l10n.get('hideCategories'),
-                    value: _hideCategories,
-                    onChanged: (v) {
-                      setState(() => _hideCategories = v);
-                      widget.onToggleHideCategories(v);
-                    },
-                  ),
-                  _buildSubToggle(
-                    icon: Icons.speaker_notes_off_outlined,
-                    title: l10n.get('hidePlayback'),
-                    value: _hidePlayback,
-                    onChanged: (v) {
-                      setState(() => _hidePlayback = v);
-                      widget.onToggleHidePlayback(v);
-                    },
-                  ),
-                  _buildSubToggle(
-                    icon: Icons.volume_off,
-                    title: l10n.get('hideVolumeBar'),
-                    value: !_showMasterVolume,
-                    onChanged: (v) {
-                      setState(() => _showMasterVolume = !v);
-                      widget.onToggleToolbarButton('master_volume', !v);
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // 🔄 Reset Sounds Section
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.refresh, color: Colors.blueGrey[800]),
-                      const SizedBox(width: 12),
-                      Text(
-                        l10n.get('resetSounds'),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                        const SizedBox(height: 4),
+                        _buildSubToggle(
+                          icon: Icons.star_border,
+                          title: l10n.get('hideFavoriteButton'),
+                          value: _hideFavorite,
+                          onChanged: (v) {
+                            setState(() => _hideFavorite = v);
+                            widget.onToggleHideFavorite(v);
+                          },
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.get('resetSoundsDescription'),
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueGrey[800],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            backgroundColor: Colors.white,
-                            title: Text(
-                              l10n.get('resetConfirmTitle'),
-                              style: const TextStyle(color: Colors.black87),
-                            ),
-                            content: Text(
-                              l10n.get('resetConfirmMessage'),
-                              style: const TextStyle(color: Colors.black87),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, false),
-                                child: Text(l10n.get('cancel'),
-                                    style: const TextStyle(color: Colors.black54)),
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blueGrey[800],
-                                  foregroundColor: Colors.white,
-                                ),
-                                onPressed: () => Navigator.pop(context, true),
-                                child: Text(l10n.get('reset')),
-                              ),
-                            ],
-                          ),
-                        );
-
-                        if (confirm == true) {
-                          widget.onResetSounds();
-                          if (mounted) Navigator.pop(context);
-                        }
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: Text(l10n.get('resetToDefault')),
+                        _buildSubToggle(
+                          icon: Icons.settings_outlined,
+                          title: l10n.get('hideSettingsButton'),
+                          value: _hideSettingsBtn,
+                          onChanged: (v) {
+                            setState(() => _hideSettingsBtn = v);
+                            widget.onToggleHideSettingsBtn(v);
+                          },
+                        ),
+                        _buildSubToggle(
+                          icon: Icons.label_off_outlined,
+                          title: l10n.get('hideCategories'),
+                          value: _hideCategories,
+                          onChanged: (v) {
+                            setState(() => _hideCategories = v);
+                            widget.onToggleHideCategories(v);
+                          },
+                        ),
+                        _buildSubToggle(
+                          icon: Icons.speaker_notes_off_outlined,
+                          title: l10n.get('hidePlayback'),
+                          value: _hidePlayback,
+                          onChanged: (v) {
+                            setState(() => _hidePlayback = v);
+                            widget.onToggleHidePlayback(v);
+                          },
+                        ),
+                        _buildSubToggle(
+                          icon: Icons.volume_off,
+                          title: l10n.get('hideVolumeBar'),
+                          value: !_showMasterVolume,
+                          onChanged: (v) {
+                            setState(() => _showMasterVolume = !v);
+                            widget.onToggleToolbarButton('master_volume', !v);
+                          },
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red[700],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            backgroundColor: Colors.white,
-                            title: Text(
-                              l10n.get('deleteAllConfirmTitle'),
-                              style: const TextStyle(color: Colors.black87),
-                            ),
-                            content: Text(
-                              l10n.get('deleteAllConfirmMessage'),
-                              style: const TextStyle(color: Colors.black87),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, false),
-                                child: Text(l10n.get('cancel'),
-                                    style: const TextStyle(color: Colors.black54)),
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red[700],
-                                  foregroundColor: Colors.white,
-                                ),
-                                onPressed: () => Navigator.pop(context, true),
-                                child: Text(l10n.get('deleteAll')),
-                              ),
-                            ],
-                          ),
-                        );
+                ),
 
-                        if (confirm == true) {
-                          widget.onDeleteAllSounds();
-                          if (mounted) Navigator.pop(context);
-                        }
-                      },
-                      icon: const Icon(Icons.delete_forever),
-                      label: Text(l10n.get('deleteAllSounds')),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+                const SizedBox(height: 16),
 
-          const SizedBox(height: 24),
-
-          // 📂 Manage Categories Section
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.category, color: Colors.blueGrey[800]),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          l10n.get('manageCategories'),
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.add_circle, color: Colors.blueGrey[700]),
-                        tooltip: l10n.get('addCategory'),
-                        onPressed: () async {
-                          final controller = TextEditingController();
-                          final newName = await showDialog<String>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              backgroundColor: Theme.of(context).cardColor,
-                              title: Text(l10n.get('newCategory')),
-                              content: TextField(
-                                controller: controller,
-                                autofocus: true,
-                                maxLength: 40,
-                                decoration: InputDecoration(
-                                  labelText: l10n.get('enterCategoryName'),
-                                  border: const OutlineInputBorder(),
-                                ),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: Text(l10n.get('cancel')),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () => Navigator.pop(context, controller.text.trim()),
-                                  child: Text(l10n.get('save')),
-                                ),
-                              ],
-                            ),
-                          );
-
-                          if (newName != null && newName.isNotEmpty &&
-                              !_localCategories.contains(newName)) {
-                            setState(() {
-                              _localCategories.add(newName);
-                            });
-                            widget.onAddCategory(newName);
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.get('manageCategoriesDescription'),
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Category list
-                  ..._localCategories
-                      .where((cat) => cat.toLowerCase() != 'everything')
-                      .map((category) {
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ListTile(
-                        title: Text(
-                          category,
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
+                // 🔄 Reset Sounds Section
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
+                            Icon(Icons.refresh, color: Colors.blueGrey[800]),
+                            const SizedBox(width: 12),
+                            Text(
+                              l10n.get('resetSounds'),
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          l10n.get('resetSoundsDescription'),
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blueGrey[800],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  backgroundColor: Colors.white,
+                                  title: Text(
+                                    l10n.get('resetConfirmTitle'),
+                                    style:
+                                        const TextStyle(color: Colors.black87),
+                                  ),
+                                  content: Text(
+                                    l10n.get('resetConfirmMessage'),
+                                    style:
+                                        const TextStyle(color: Colors.black87),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: Text(l10n.get('cancel'),
+                                          style: const TextStyle(
+                                              color: Colors.black54)),
+                                    ),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blueGrey[800],
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      child: Text(l10n.get('reset')),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (confirm == true) {
+                                widget.onResetSounds();
+                                if (mounted) Navigator.pop(context);
+                              }
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: Text(l10n.get('resetToDefault')),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red[700],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  backgroundColor: Colors.white,
+                                  title: Text(
+                                    l10n.get('deleteAllConfirmTitle'),
+                                    style:
+                                        const TextStyle(color: Colors.black87),
+                                  ),
+                                  content: Text(
+                                    l10n.get('deleteAllConfirmMessage'),
+                                    style:
+                                        const TextStyle(color: Colors.black87),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: Text(l10n.get('cancel'),
+                                          style: const TextStyle(
+                                              color: Colors.black54)),
+                                    ),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red[700],
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      child: Text(l10n.get('deleteAll')),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (confirm == true) {
+                                widget.onDeleteAllSounds();
+                                if (mounted) Navigator.pop(context);
+                              }
+                            },
+                            icon: const Icon(Icons.delete_forever),
+                            label: Text(l10n.get('deleteAllSounds')),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // 📂 Manage Categories Section
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.category, color: Colors.blueGrey[800]),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                l10n.get('manageCategories'),
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                             IconButton(
-                              icon: Icon(Icons.edit, color: Colors.blueGrey[700]),
-                              tooltip: l10n.get('editCategory'),
+                              icon: Icon(Icons.add_circle,
+                                  color: Colors.blueGrey[700]),
+                              tooltip: l10n.get('addCategory'),
                               onPressed: () async {
-                                final controller = TextEditingController(text: category);
+                                final controller = TextEditingController();
                                 final newName = await showDialog<String>(
                                   context: context,
                                   builder: (context) => AlertDialog(
-                                    backgroundColor: Theme.of(context).cardColor,
-                                    title: Text(l10n.get('editCategory')),
+                                    backgroundColor:
+                                        Theme.of(context).cardColor,
+                                    title: Text(l10n.get('newCategory')),
                                     content: TextField(
                                       controller: controller,
                                       autofocus: true,
+                                      maxLength: 40,
                                       decoration: InputDecoration(
-                                        labelText: l10n.get('newCategoryName'),
+                                        labelText:
+                                            l10n.get('enterCategoryName'),
                                         border: const OutlineInputBorder(),
                                       ),
                                     ),
@@ -665,722 +630,974 @@ class _SettingsPageState extends State<SettingsPage> {
                                         child: Text(l10n.get('cancel')),
                                       ),
                                       ElevatedButton(
-                                        onPressed: () => Navigator.pop(context, controller.text.trim()),
+                                        onPressed: () => Navigator.pop(
+                                            context, controller.text.trim()),
                                         child: Text(l10n.get('save')),
                                       ),
                                     ],
                                   ),
                                 );
 
-                                if (newName != null && newName.isNotEmpty && newName != category) {
+                                if (newName != null &&
+                                    newName.isNotEmpty &&
+                                    !_localCategories.contains(newName)) {
                                   setState(() {
-                                    final index = _localCategories.indexOf(category);
-                                    if (index != -1) {
-                                      _localCategories[index] = newName;
-                                    }
+                                    _localCategories.add(newName);
                                   });
-                                  widget.onRenameCategory(category, newName);
+                                  widget.onAddCategory(newName);
                                 }
                               },
                             ),
-                            GestureDetector(
-                              onTap: () => _showColorPicker(context, category),
-                              child: Container(
-                                width: 26,
-                                height: 26,
-                                margin: const EdgeInsets.symmetric(horizontal: 4),
-                                decoration: BoxDecoration(
-                                  color: _localCategoryColors.containsKey(category)
-                                      ? Color(_localCategoryColors[category]!)
-                                      : kColorPalette.first,
-                                  shape: BoxShape.circle,
-                                ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          l10n.get('manageCategoriesDescription'),
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Category list
+                        ..._localCategories
+                            .where((cat) => cat.toLowerCase() != 'everything')
+                            .map((category) {
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              title: Text(
+                                category,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w500),
                               ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.redAccent),
-                              tooltip: l10n.get('deleteCategory'),
-                              onPressed: () async {
-                                bool deleteSounds = false;
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (context) => StatefulBuilder(
-                                    builder: (context, setDialogState) => AlertDialog(
-                                      backgroundColor: Theme.of(context).cardColor,
-                                      title: Text(l10n.get('deleteCategory')),
-                                      content: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(l10n.get('deleteCategoryConfirm').replaceAll('{category}', category)),
-                                          const SizedBox(height: 12),
-                                          Row(
-                                            children: [
-                                              Checkbox(
-                                                value: deleteSounds,
-                                                activeColor: Colors.redAccent,
-                                                onChanged: (v) => setDialogState(() => deleteSounds = v ?? false),
-                                              ),
-                                              Expanded(
-                                                child: GestureDetector(
-                                                  onTap: () => setDialogState(() => deleteSounds = !deleteSounds),
-                                                  child: Text(
-                                                    l10n.get('deleteSoundsAlso'),
-                                                    style: const TextStyle(fontSize: 13),
-                                                  ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(Icons.edit,
+                                        color: Colors.blueGrey[700]),
+                                    tooltip: l10n.get('editCategory'),
+                                    onPressed: () async {
+                                      final controller =
+                                          TextEditingController(text: category);
+                                      final newName = await showDialog<String>(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          backgroundColor:
+                                              Theme.of(context).cardColor,
+                                          title: Text(l10n.get('editCategory')),
+                                          content: TextField(
+                                            controller: controller,
+                                            autofocus: true,
+                                            decoration: InputDecoration(
+                                              labelText:
+                                                  l10n.get('newCategoryName'),
+                                              border:
+                                                  const OutlineInputBorder(),
+                                            ),
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context),
+                                              child: Text(l10n.get('cancel')),
+                                            ),
+                                            ElevatedButton(
+                                              onPressed: () => Navigator.pop(
+                                                  context,
+                                                  controller.text.trim()),
+                                              child: Text(l10n.get('save')),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+
+                                      if (newName != null &&
+                                          newName.isNotEmpty &&
+                                          newName != category) {
+                                        setState(() {
+                                          final index = _localCategories
+                                              .indexOf(category);
+                                          if (index != -1) {
+                                            _localCategories[index] = newName;
+                                          }
+                                        });
+                                        widget.onRenameCategory(
+                                            category, newName);
+                                      }
+                                    },
+                                  ),
+                                  GestureDetector(
+                                    onTap: () =>
+                                        _showColorPicker(context, category),
+                                    child: Container(
+                                      width: 26,
+                                      height: 26,
+                                      margin: const EdgeInsets.symmetric(
+                                          horizontal: 4),
+                                      decoration: BoxDecoration(
+                                        color: _localCategoryColors
+                                                .containsKey(category)
+                                            ? Color(
+                                                _localCategoryColors[category]!)
+                                            : kColorPalette.first,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete,
+                                        color: Colors.redAccent),
+                                    tooltip: l10n.get('deleteCategory'),
+                                    onPressed: () async {
+                                      bool deleteSounds = false;
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (context) => StatefulBuilder(
+                                          builder: (context, setDialogState) =>
+                                              AlertDialog(
+                                            backgroundColor:
+                                                Theme.of(context).cardColor,
+                                            title: Text(
+                                                l10n.get('deleteCategory')),
+                                            content: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(l10n
+                                                    .get(
+                                                        'deleteCategoryConfirm')
+                                                    .replaceAll('{category}',
+                                                        category)),
+                                                const SizedBox(height: 12),
+                                                Row(
+                                                  children: [
+                                                    Checkbox(
+                                                      value: deleteSounds,
+                                                      activeColor:
+                                                          Colors.redAccent,
+                                                      onChanged: (v) =>
+                                                          setDialogState(() =>
+                                                              deleteSounds =
+                                                                  v ?? false),
+                                                    ),
+                                                    Expanded(
+                                                      child: GestureDetector(
+                                                        onTap: () =>
+                                                            setDialogState(() =>
+                                                                deleteSounds =
+                                                                    !deleteSounds),
+                                                        child: Text(
+                                                          l10n.get(
+                                                              'deleteSoundsAlso'),
+                                                          style:
+                                                              const TextStyle(
+                                                                  fontSize: 13),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
+                                              ],
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(
+                                                    context, false),
+                                                child: Text(l10n.get('cancel')),
+                                              ),
+                                              ElevatedButton(
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor:
+                                                      Colors.redAccent,
+                                                  foregroundColor: Colors.white,
+                                                ),
+                                                onPressed: () => Navigator.pop(
+                                                    context, true),
+                                                child: Text(l10n.get('delete')),
                                               ),
                                             ],
                                           ),
-                                        ],
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(context, false),
-                                          child: Text(l10n.get('cancel')),
                                         ),
-                                        ElevatedButton(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.redAccent,
-                                            foregroundColor: Colors.white,
+                                      );
+
+                                      if (confirm == true) {
+                                        setState(() {
+                                          _localCategories.remove(category);
+                                        });
+                                        widget.onDeleteCategory(
+                                            category, deleteSounds);
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+
+                        if (_localCategories
+                            .where((cat) => cat.toLowerCase() != 'everything')
+                            .isEmpty)
+                          Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text(
+                                l10n.get('noCustomCategories'),
+                                style: const TextStyle(color: Colors.grey),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // 🎛️ Toolbar Buttons Section
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.tune, color: Colors.blueGrey[800]),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    l10n.get('toolbarButtons'),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    l10n.get('toolbarButtonsDesc'),
+                                    style: const TextStyle(
+                                        color: Colors.grey, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        _toolbarToggleRow(
+                            Icons.search, l10n.get('searchSounds'), _showSearch,
+                            (v) {
+                          setState(() => _showSearch = v);
+                          widget.onToggleToolbarButton('search', v);
+                        }),
+                        _toolbarToggleRow(
+                            Icons.loop, l10n.get('loop'), _showLoop, (v) {
+                          setState(() => _showLoop = v);
+                          widget.onToggleToolbarButton('loop', v);
+                        }),
+                        _toolbarToggleRow(
+                            Icons.speed, l10n.get('playbackSpeed'), _showSpeed,
+                            (v) {
+                          setState(() => _showSpeed = v);
+                          widget.onToggleToolbarButton('speed', v);
+                        }),
+                        _toolbarToggleRow(Icons.shuffle,
+                            l10n.get('shufflePlay'), _showShuffle, (v) {
+                          setState(() => _showShuffle = v);
+                          widget.onToggleToolbarButton('shuffle', v);
+                        }),
+                        _toolbarToggleRow(
+                            Icons.add, l10n.get('addSound'), _showAdd, (v) {
+                          setState(() => _showAdd = v);
+                          widget.onToggleToolbarButton('add', v);
+                        }),
+                        _toolbarToggleRow(
+                            Icons.delete, l10n.get('deleteMode'), _showDelete,
+                            (v) {
+                          setState(() => _showDelete = v);
+                          widget.onToggleToolbarButton('delete', v);
+                        }),
+                        _toolbarToggleRow(Icons.dark_mode, l10n.get('darkMode'),
+                            _showDarkMode, (v) {
+                          setState(() => _showDarkMode = v);
+                          widget.onToggleToolbarButton('darkmode', v);
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // 💾 Export / Import Section
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.backup, color: Colors.blueGrey[800]),
+                            const SizedBox(width: 12),
+                            Text(
+                              l10n.get('backupRestore'),
+                              style: const TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          l10n.get('backupRestoreDesc'),
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blueGrey[800],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            onPressed: _isExporting || _isImporting
+                                ? null
+                                : () async {
+                                    setState(() => _isExporting = true);
+                                    try {
+                                      await widget.onExportSounds();
+                                    } finally {
+                                      if (mounted)
+                                        setState(() => _isExporting = false);
+                                    }
+                                  },
+                            icon: _isExporting
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white),
+                                  )
+                                : const Icon(Icons.upload),
+                            label: Text(l10n.get('exportSounds')),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blueGrey[700],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            onPressed: _isImporting || _isExporting
+                                ? null
+                                : () async {
+                                    setState(() => _isImporting = true);
+                                    try {
+                                      await widget.onImportSounds(context);
+                                    } finally {
+                                      if (mounted)
+                                        setState(() => _isImporting = false);
+                                    }
+                                  },
+                            icon: _isImporting
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white),
+                                  )
+                                : const Icon(Icons.download),
+                            label: Text(l10n.get('importSounds')),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // 📳 Haptic Feedback Section
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        Icon(Icons.vibration, color: Colors.blueGrey[800]),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            l10n.get('hapticFeedback'),
+                            style: const TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Switch(
+                          value: _hapticFeedback,
+                          activeThumbColor: Colors.blueGrey[800],
+                          onChanged: (value) {
+                            setState(() => _hapticFeedback = value);
+                            widget.onToggleHapticFeedback(value);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // 🎚️ Fade In / Fade Out Section
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.gradient, color: Colors.blueGrey[800]),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Fade In / Fade Out',
+                              style: const TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.get('fadeGlobalDescription'),
+                          style:
+                              const TextStyle(color: Colors.grey, fontSize: 13),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Switch(
+                                        value: _globalFadeInMs > 0,
+                                        activeThumbColor: Colors.blueGrey[800],
+                                        onChanged: (checked) {
+                                          final newVal = checked ? 1000 : 0;
+                                          setState(
+                                              () => _globalFadeInMs = newVal);
+                                          widget.onSetGlobalFadeIn(newVal);
+                                        },
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Text('Fade In',
+                                          style: TextStyle(fontSize: 14)),
+                                    ],
+                                  ),
+                                  if (_globalFadeInMs > 0) ...[
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Slider(
+                                            value: _globalFadeInMs
+                                                .toDouble()
+                                                .clamp(100, 5000),
+                                            min: 100,
+                                            max: 5000,
+                                            divisions: 49,
+                                            activeColor: Colors.blueGrey[700],
+                                            inactiveColor: Colors.grey[300],
+                                            onChanged: (v) {
+                                              setState(() =>
+                                                  _globalFadeInMs = v.toInt());
+                                              widget
+                                                  .onSetGlobalFadeIn(v.toInt());
+                                            },
                                           ),
-                                          onPressed: () => Navigator.pop(context, true),
-                                          child: Text(l10n.get('delete')),
+                                        ),
+                                        SizedBox(
+                                          width: 42,
+                                          child: Text(
+                                            '${(_globalFadeInMs / 1000).toStringAsFixed(1)}s',
+                                            style:
+                                                const TextStyle(fontSize: 13),
+                                          ),
                                         ),
                                       ],
                                     ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Switch(
+                                        value: _globalFadeOutMs > 0,
+                                        activeThumbColor: Colors.blueGrey[800],
+                                        onChanged: (checked) {
+                                          final newVal = checked ? 1000 : 0;
+                                          setState(
+                                              () => _globalFadeOutMs = newVal);
+                                          widget.onSetGlobalFadeOut(newVal);
+                                        },
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Text('Fade Out',
+                                          style: TextStyle(fontSize: 14)),
+                                    ],
                                   ),
-                                );
-
-                                if (confirm == true) {
-                                  setState(() {
-                                    _localCategories.remove(category);
-                                  });
-                                  widget.onDeleteCategory(category, deleteSounds);
-                                }
-                              },
+                                  if (_globalFadeOutMs > 0) ...[
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Slider(
+                                            value: _globalFadeOutMs
+                                                .toDouble()
+                                                .clamp(100, 5000),
+                                            min: 100,
+                                            max: 5000,
+                                            divisions: 49,
+                                            activeColor: Colors.blueGrey[700],
+                                            inactiveColor: Colors.grey[300],
+                                            onChanged: (v) {
+                                              setState(() =>
+                                                  _globalFadeOutMs = v.toInt());
+                                              widget.onSetGlobalFadeOut(
+                                                  v.toInt());
+                                            },
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: 42,
+                                          child: Text(
+                                            '${(_globalFadeOutMs / 1000).toStringAsFixed(1)}s',
+                                            style:
+                                                const TextStyle(fontSize: 13),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                    );
-                  }).toList(),
-
-                  if (_localCategories
-                      .where((cat) => cat.toLowerCase() != 'everything')
-                      .isEmpty)
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          l10n.get('noCustomCategories'),
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                      ),
+                      ],
                     ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
+                  ),
+                ),
 
-          // 🎛️ Toolbar Buttons Section
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.tune, color: Colors.blueGrey[800]),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 24),
+
+                // 🚫 Remove Ads Section — hidden entirely while ads are globally
+                // disabled (kAdsGloballyEnabled), since there's nothing to remove.
+                if (kAdsGloballyEnabled)
+                  AnimatedBuilder(
+                    animation: Listenable.merge([
+                      AdsService.instance.adsRemoved,
+                      AdsService.instance.purchaseInProgress,
+                    ]),
+                    builder: (context, _) {
+                      final removed = AdsService.instance.adsRemoved.value;
+                      final busy = AdsService.instance.purchaseInProgress.value;
+                      final product = AdsService.instance.removeAdsProduct;
+                      return Column(
+                        children: [
+                          Card(
+                            elevation: 2,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.block,
+                                          color: Colors.blueGrey[800]),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        l10n.get('removeAds'),
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    removed
+                                        ? l10n.get('removeAdsPurchased')
+                                        : l10n.get('removeAdsDescription'),
+                                    style: const TextStyle(color: Colors.grey),
+                                  ),
+                                  if (!removed) ...[
+                                    const SizedBox(height: 16),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.blueGrey[800],
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 14),
+                                        ),
+                                        onPressed: busy ? null : _buyRemoveAds,
+                                        icon: busy
+                                            ? const SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  color: Colors.white,
+                                                ),
+                                              )
+                                            : const Icon(Icons.shopping_cart),
+                                        label: Text(
+                                          busy
+                                              ? l10n.get('purchasePending')
+                                              : '${l10n.get('buy')}${product != null ? ' (${product.price})' : ''}',
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: TextButton(
+                                        onPressed:
+                                            busy ? null : _restorePurchases,
+                                        child:
+                                            Text(l10n.get('restorePurchases')),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      );
+                    },
+                  ),
+
+                // 🔇 Anti-click white noise Section
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
+                            Icon(Icons.graphic_eq, color: Colors.blueGrey[800]),
+                            const SizedBox(width: 12),
                             Text(
-                              l10n.get('toolbarButtons'),
+                              l10n.get('whiteNoise'),
                               style: const TextStyle(
-                                fontSize: 16,
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            const SizedBox(height: 2),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          l10n.get('whiteNoiseDescription'),
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                        const SizedBox(height: 16),
+                        ValueListenableBuilder<WhiteNoiseMode>(
+                          valueListenable: WhiteNoiseService.instance.mode,
+                          builder: (context, currentMode, _) {
+                            return SegmentedButton<WhiteNoiseMode>(
+                              segments: [
+                                ButtonSegment(
+                                  value: WhiteNoiseMode.off,
+                                  label: Text(l10n.get('whiteNoiseOff')),
+                                ),
+                                ButtonSegment(
+                                  value: WhiteNoiseMode.wiredOnly,
+                                  label: Text(l10n.get('whiteNoiseWiredOnly')),
+                                ),
+                                ButtonSegment(
+                                  value: WhiteNoiseMode.always,
+                                  label: Text(l10n.get('whiteNoiseAlways')),
+                                ),
+                              ],
+                              selected: {currentMode},
+                              onSelectionChanged: (selection) {
+                                WhiteNoiseService.instance
+                                    .setMode(selection.first);
+                              },
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // 🌍 Language Selection Section
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.language, color: Colors.blueGrey[800]),
+                            const SizedBox(width: 12),
                             Text(
-                              l10n.get('toolbarButtonsDesc'),
-                              style: const TextStyle(color: Colors.grey, fontSize: 13),
+                              l10n.get('language'),
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  _toolbarToggleRow(Icons.search, l10n.get('searchSounds'), _showSearch, (v) {
-                    setState(() => _showSearch = v);
-                    widget.onToggleToolbarButton('search', v);
-                  }),
-                  _toolbarToggleRow(Icons.loop, l10n.get('loop'), _showLoop, (v) {
-                    setState(() => _showLoop = v);
-                    widget.onToggleToolbarButton('loop', v);
-                  }),
-                  _toolbarToggleRow(Icons.speed, l10n.get('playbackSpeed'), _showSpeed, (v) {
-                    setState(() => _showSpeed = v);
-                    widget.onToggleToolbarButton('speed', v);
-                  }),
-                  _toolbarToggleRow(Icons.shuffle, l10n.get('shufflePlay'), _showShuffle, (v) {
-                    setState(() => _showShuffle = v);
-                    widget.onToggleToolbarButton('shuffle', v);
-                  }),
-                  _toolbarToggleRow(Icons.add, l10n.get('addSound'), _showAdd, (v) {
-                    setState(() => _showAdd = v);
-                    widget.onToggleToolbarButton('add', v);
-                  }),
-                  _toolbarToggleRow(Icons.delete, l10n.get('deleteMode'), _showDelete, (v) {
-                    setState(() => _showDelete = v);
-                    widget.onToggleToolbarButton('delete', v);
-                  }),
-                  _toolbarToggleRow(Icons.dark_mode, l10n.get('darkMode'), _showDarkMode, (v) {
-                    setState(() => _showDarkMode = v);
-                    widget.onToggleToolbarButton('darkmode', v);
-                  }),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // 💾 Export / Import Section
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.backup, color: Colors.blueGrey[800]),
-                      const SizedBox(width: 12),
-                      Text(
-                        l10n.get('backupRestore'),
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.get('backupRestoreDesc'),
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueGrey[800],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: _isExporting || _isImporting ? null : () async {
-                        setState(() => _isExporting = true);
-                        try {
-                          await widget.onExportSounds();
-                        } finally {
-                          if (mounted) setState(() => _isExporting = false);
-                        }
-                      },
-                      icon: _isExporting
-                          ? const SizedBox(
-                              width: 18, height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Icon(Icons.upload),
-                      label: Text(l10n.get('exportSounds')),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueGrey[700],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: _isImporting || _isExporting ? null : () async {
-                        setState(() => _isImporting = true);
-                        try {
-                          await widget.onImportSounds(context);
-                        } finally {
-                          if (mounted) setState(() => _isImporting = false);
-                        }
-                      },
-                      icon: _isImporting
-                          ? const SizedBox(
-                              width: 18, height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Icon(Icons.download),
-                      label: Text(l10n.get('importSounds')),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // 📳 Haptic Feedback Section
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Icon(Icons.vibration, color: Colors.blueGrey[800]),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      l10n.get('hapticFeedback'),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  Switch(
-                    value: _hapticFeedback,
-                    activeThumbColor: Colors.blueGrey[800],
-                    onChanged: (value) {
-                      setState(() => _hapticFeedback = value);
-                      widget.onToggleHapticFeedback(value);
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // 🎚️ Fade In / Fade Out Section
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.gradient, color: Colors.blueGrey[800]),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Fade In / Fade Out',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    l10n.get('fadeGlobalDescription'),
-                    style: const TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Switch(
-                                  value: _globalFadeInMs > 0,
-                                  activeThumbColor: Colors.blueGrey[800],
-                                  onChanged: (checked) {
-                                    final newVal = checked ? 1000 : 0;
-                                    setState(() => _globalFadeInMs = newVal);
-                                    widget.onSetGlobalFadeIn(newVal);
-                                  },
-                                ),
-                                const SizedBox(width: 4),
-                                const Text('Fade In', style: TextStyle(fontSize: 14)),
-                              ],
-                            ),
-                            if (_globalFadeInMs > 0) ...[
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Slider(
-                                      value: _globalFadeInMs.toDouble().clamp(100, 5000),
-                                      min: 100,
-                                      max: 5000,
-                                      divisions: 49,
-                                      activeColor: Colors.blueGrey[700],
-                                      inactiveColor: Colors.grey[300],
-                                      onChanged: (v) {
-                                        setState(() => _globalFadeInMs = v.toInt());
-                                        widget.onSetGlobalFadeIn(v.toInt());
-                                      },
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: 42,
-                                    child: Text(
-                                      '${(_globalFadeInMs / 1000).toStringAsFixed(1)}s',
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ],
+                        const SizedBox(height: 12),
+                        Text(
+                          l10n.get('selectLanguage'),
+                          style: const TextStyle(color: Colors.grey),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Switch(
-                                  value: _globalFadeOutMs > 0,
-                                  activeThumbColor: Colors.blueGrey[800],
-                                  onChanged: (checked) {
-                                    final newVal = checked ? 1000 : 0;
-                                    setState(() => _globalFadeOutMs = newVal);
-                                    widget.onSetGlobalFadeOut(newVal);
-                                  },
-                                ),
-                                const SizedBox(width: 4),
-                                const Text('Fade Out', style: TextStyle(fontSize: 14)),
-                              ],
-                            ),
-                            if (_globalFadeOutMs > 0) ...[
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Slider(
-                                      value: _globalFadeOutMs.toDouble().clamp(100, 5000),
-                                      min: 100,
-                                      max: 5000,
-                                      divisions: 49,
-                                      activeColor: Colors.blueGrey[700],
-                                      inactiveColor: Colors.grey[300],
-                                      onChanged: (v) {
-                                        setState(() => _globalFadeOutMs = v.toInt());
-                                        widget.onSetGlobalFadeOut(v.toInt());
-                                      },
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: 42,
-                                    child: Text(
-                                      '${(_globalFadeOutMs / 1000).toStringAsFixed(1)}s',
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // 🚫 Remove Ads Section
-          AnimatedBuilder(
-            animation: Listenable.merge([
-              AdsService.instance.adsRemoved,
-              AdsService.instance.purchaseInProgress,
-            ]),
-            builder: (context, _) {
-              final removed = AdsService.instance.adsRemoved.value;
-              final busy = AdsService.instance.purchaseInProgress.value;
-              final product = AdsService.instance.removeAdsProduct;
-              return Column(
-                children: [
-                  Card(
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.block, color: Colors.blueGrey[800]),
-                              const SizedBox(width: 12),
-                              Text(
-                                l10n.get('removeAds'),
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          initialValue: currentLocale.languageCode,
+                          decoration: InputDecoration(
+                            border: const OutlineInputBorder(),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
+                            filled: true,
+                            fillColor: Theme.of(context).cardColor,
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            removed
-                                ? l10n.get('removeAdsPurchased')
-                                : l10n.get('removeAdsDescription'),
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                          if (!removed) ...[
-                            const SizedBox(height: 16),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blueGrey[800],
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                ),
-                                onPressed: busy ? null : _buyRemoveAds,
-                                icon: busy
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Icon(Icons.shopping_cart),
-                                label: Text(
-                                  busy
-                                      ? l10n.get('purchasePending')
-                                      : '${l10n.get('buy')}${product != null ? ' (${product.price})' : ''}',
-                                ),
-                              ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'en',
+                              child: Row(children: [
+                                Text('🇬🇧', style: TextStyle(fontSize: 24)),
+                                SizedBox(width: 12),
+                                Text('English')
+                              ]),
                             ),
-                            const SizedBox(height: 8),
-                            SizedBox(
-                              width: double.infinity,
-                              child: TextButton(
-                                onPressed: busy ? null : _restorePurchases,
-                                child: Text(l10n.get('restorePurchases')),
+                            DropdownMenuItem(
+                              value: 'pt',
+                              child: Row(children: [
+                                Text('🇧🇷', style: TextStyle(fontSize: 24)),
+                                SizedBox(width: 12),
+                                Text('Português')
+                              ]),
+                            ),
+                            DropdownMenuItem(
+                              value: 'es',
+                              child: Row(children: [
+                                Text('🇪🇸', style: TextStyle(fontSize: 24)),
+                                SizedBox(width: 12),
+                                Text('Español')
+                              ]),
+                            ),
+                            DropdownMenuItem(
+                              value: 'fr',
+                              child: Row(children: [
+                                Text('🇫🇷', style: TextStyle(fontSize: 24)),
+                                SizedBox(width: 12),
+                                Text('Français')
+                              ]),
+                            ),
+                            DropdownMenuItem(
+                              value: 'de',
+                              child: Row(children: [
+                                Text('🇩🇪', style: TextStyle(fontSize: 24)),
+                                SizedBox(width: 12),
+                                Text('Deutsch')
+                              ]),
+                            ),
+                            DropdownMenuItem(
+                              value: 'it',
+                              child: Row(children: [
+                                Text('🇮🇹', style: TextStyle(fontSize: 24)),
+                                SizedBox(width: 12),
+                                Text('Italiano')
+                              ]),
+                            ),
+                            DropdownMenuItem(
+                              value: 'id',
+                              child: Row(children: [
+                                Text('🇮🇩', style: TextStyle(fontSize: 24)),
+                                SizedBox(width: 12),
+                                Text('Indonesia')
+                              ]),
+                            ),
+                            DropdownMenuItem(
+                              value: 'ru',
+                              child: Row(children: [
+                                Text('🇷🇺', style: TextStyle(fontSize: 24)),
+                                SizedBox(width: 12),
+                                Text('Русский')
+                              ]),
+                            ),
+                            DropdownMenuItem(
+                              value: 'ja',
+                              child: Row(children: [
+                                Text('🇯🇵', style: TextStyle(fontSize: 24)),
+                                SizedBox(width: 12),
+                                Text('日本語')
+                              ]),
+                            ),
+                          ],
+                          onChanged: (String? value) {
+                            if (value != null) {
+                              MyApp.setLocale(context, Locale(value));
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // 🔒 Privacy Settings Section
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.privacy_tip,
+                                color: Colors.blueGrey[800]),
+                            const SizedBox(width: 12),
+                            Text(
+                              l10n.get('privacySettings'),
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              );
-            },
-          ),
-
-          // 🌍 Language Selection Section
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.language, color: Colors.blueGrey[800]),
-                      const SizedBox(width: 12),
-                      Text(
-                        l10n.get('language'),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.get('selectLanguage'),
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    initialValue: currentLocale.languageCode,
-                    decoration: InputDecoration(
-                      border: const OutlineInputBorder(),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      filled: true,
-                      fillColor: Theme.of(context).cardColor,
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'en',
-                        child: Row(children: [Text('🇬🇧', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('English')]),
-                      ),
-                      DropdownMenuItem(
-                        value: 'pt',
-                        child: Row(children: [Text('🇧🇷', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('Português')]),
-                      ),
-                      DropdownMenuItem(
-                        value: 'es',
-                        child: Row(children: [Text('🇪🇸', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('Español')]),
-                      ),
-                      DropdownMenuItem(
-                        value: 'fr',
-                        child: Row(children: [Text('🇫🇷', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('Français')]),
-                      ),
-                      DropdownMenuItem(
-                        value: 'de',
-                        child: Row(children: [Text('🇩🇪', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('Deutsch')]),
-                      ),
-                      DropdownMenuItem(
-                        value: 'it',
-                        child: Row(children: [Text('🇮🇹', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('Italiano')]),
-                      ),
-                      DropdownMenuItem(
-                        value: 'id',
-                        child: Row(children: [Text('🇮🇩', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('Indonesia')]),
-                      ),
-                      DropdownMenuItem(
-                        value: 'ru',
-                        child: Row(children: [Text('🇷🇺', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('Русский')]),
-                      ),
-                      DropdownMenuItem(
-                        value: 'ja',
-                        child: Row(children: [Text('🇯🇵', style: TextStyle(fontSize: 24)), SizedBox(width: 12), Text('日本語')]),
-                      ),
-                    ],
-                    onChanged: (String? value) {
-                      if (value != null) {
-                        MyApp.setLocale(context, Locale(value));
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // 🔒 Privacy Settings Section
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.privacy_tip, color: Colors.blueGrey[800]),
-                      const SizedBox(width: 12),
-                      Text(
-                        l10n.get('privacySettings'),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                        const SizedBox(height: 12),
+                        Text(
+                          l10n.get('privacySettingsDesc'),
+                          style: const TextStyle(color: Colors.grey),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.get('privacySettingsDesc'),
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueGrey[800],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () {
-                        ConsentForm.showPrivacyOptionsForm((formError) {
-                          if (formError != null) {
-                            debugPrint('Privacy form error: ${formError.message}');
-                          }
-                        });
-                      },
-                      icon: const Icon(Icons.settings),
-                      label: Text(l10n.get('managePrivacy')),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // ☕ Support / Ko-fi Section
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.favorite, color: Colors.pinkAccent[200]),
-                      const SizedBox(width: 12),
-                      Text(
-                        l10n.get('supportTitle'),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blueGrey[800],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            onPressed: () {
+                              ConsentForm.showPrivacyOptionsForm((formError) {
+                                if (formError != null) {
+                                  debugPrint(
+                                      'Privacy form error: ${formError.message}');
+                                }
+                              });
+                            },
+                            icon: const Icon(Icons.settings),
+                            label: Text(l10n.get('managePrivacy')),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.get('supportDesc'),
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueGrey[800],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () async {
-                        const intent = AndroidIntent(
-                          action: 'action_view',
-                          data: 'https://ko-fi.com/marcelso',
-                        );
-                        await intent.launch();
-                      },
-                      icon: const Icon(Icons.coffee),
-                      label: Text(l10n.get('donateButton')),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
+                ),
 
-          const SizedBox(height: 16),
-        ],
-      ),
+                const SizedBox(height: 16),
+
+                // ☕ Support / Ko-fi Section
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.favorite, color: Colors.pinkAccent[200]),
+                            const SizedBox(width: 12),
+                            Text(
+                              l10n.get('supportTitle'),
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          l10n.get('supportDesc'),
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blueGrey[800],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            onPressed: () async {
+                              const intent = AndroidIntent(
+                                action: 'action_view',
+                                data: 'https://ko-fi.com/marcelso',
+                              );
+                              await intent.launch();
+                            },
+                            icon: const Icon(Icons.coffee),
+                            label: Text(l10n.get('donateButton')),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
         ],
       ),

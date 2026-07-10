@@ -6,14 +6,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 const String kRemoveAdsProductId = 'remove_ads';
 const String _kAdsRemovedPrefKey = 'ads_removed';
 
+/// Master kill switch for ads. Flip to `false` and rebuild to hide ads
+/// everywhere (e.g. while an AdMob issue is being investigated), regardless
+/// of purchase state.
+const bool kAdsGloballyEnabled = false;
+
 /// Single source of truth for "has the user bought Remove Ads" across the app.
-/// Every screen that shows a banner ad checks [adsRemoved] before loading one
-/// and listens to it so a purchase made on another screen hides ads immediately.
+/// Every screen that shows a banner ad checks [shouldShowAds] before loading
+/// one and listens to [adsRemoved] so a purchase made on another screen (or
+/// flipping [kAdsGloballyEnabled]) hides ads immediately.
 class AdsService {
   AdsService._();
   static final AdsService instance = AdsService._();
 
   final ValueNotifier<bool> adsRemoved = ValueNotifier(false);
+
+  /// Whether ads should currently be shown, combining the global kill switch
+  /// with the user's purchase state.
+  bool get shouldShowAds => kAdsGloballyEnabled && !adsRemoved.value;
   ValueListenable<bool> get purchaseInProgress => _purchaseInProgress;
   final ValueNotifier<bool> _purchaseInProgress = ValueNotifier(false);
 

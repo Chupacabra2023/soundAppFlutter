@@ -59,7 +59,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
   @override
   void initState() {
     super.initState();
-    if (!AdsService.instance.adsRemoved.value) {
+    if (AdsService.instance.shouldShowAds) {
       _loadBannerAd();
     }
     AdsService.instance.adsRemoved.addListener(_onAdsRemovedChanged);
@@ -71,7 +71,7 @@ class _AddSoundPageState extends State<AddSoundPage> {
   }
 
   void _onAdsRemovedChanged() {
-    if (AdsService.instance.adsRemoved.value && mounted) {
+    if (!AdsService.instance.shouldShowAds && mounted) {
       final ad = _bannerAd;
       _bannerAd = null;
       setState(() => _isBannerAdLoaded = false);

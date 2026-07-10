@@ -19,7 +19,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:reorderable_grid_view/reorderable_grid_view.dart';
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'ads_service.dart';
+import 'white_noise_service.dart';
+import 'firebase_options.dart';
 
 const _exportChannel = MethodChannel('sk.marcelsotak.soundboard/export');
 
@@ -45,9 +49,21 @@ Future<void> _buildZipFile((String, List<String>) args) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Crashlytics is noisy in debug builds (hot reload, debugger detach, etc.)
+  // — only collect real crash/ANR data from release installs.
+  await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);
+  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+  PlatformDispatcher.instance.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
+
   MobileAds.instance.initialize();
   _initializeConsent();
   AdsService.instance.init();
+  WhiteNoiseService.instance.init();
   runApp(const MyApp());
 }
 
@@ -485,14 +501,14 @@ class _SoundboardPageState extends State<SoundboardPage> {
   void initState() {
     super.initState();
     _initializeApp();
-    if (!AdsService.instance.adsRemoved.value) {
+    if (AdsService.instance.shouldShowAds) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
     }
     AdsService.instance.adsRemoved.addListener(_onAdsRemovedChanged);
   }
 
   void _onAdsRemovedChanged() {
-    if (AdsService.instance.adsRemoved.value && mounted) {
+    if (!AdsService.instance.shouldShowAds && mounted) {
       final ad = _bannerAd;
       _bannerAd = null;
       setState(() => _isBannerAdLoaded = false);
