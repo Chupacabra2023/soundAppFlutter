@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'audio_route_service.dart';
 
@@ -12,10 +12,14 @@ enum WhiteNoiseMode { off, always, wiredOnly }
 const String _kWhiteNoiseModePrefKey = 'white_noise_mode';
 
 /// Some wired sound cards/DACs power down their DAC between plays and produce
-/// an audible pop/click when they wake up for the next sound. Keeping a
-/// continuous, near-silent noise stream open prevents the DAC from ever
-/// going idle, eliminating the click. See user report: connecting via cable
-/// clicks at the start of every sound; Bluetooth is unaffected.
+/// an audible pop/click when they wake up for the next sound. Keeping the
+/// output continuously fed with real silent PCM samples (via a native
+/// AudioTrack, see MainActivity.kt) prevents the DAC from ever going idle,
+/// eliminating the click without anything audible. Lowering a player's
+/// volume instead isn't enough: volume is a software gain on top of the
+/// samples, so a "quiet" stream can still be silence-detected and let the
+/// DAC idle anyway. See user report: connecting via cable clicks at the
+/// start of every sound; Bluetooth is unaffected.
 ///
 /// Nothing here touches the audio engine or the wired-route listener unless
 /// the user actually turns this on in Settings — off (the default) stays a
@@ -24,11 +28,13 @@ class WhiteNoiseService {
   WhiteNoiseService._();
   static final WhiteNoiseService instance = WhiteNoiseService._();
 
+  static const MethodChannel _channel = MethodChannel('sk.marcelsotak.soundboard/silent_keepalive');
+
   final ValueNotifier<WhiteNoiseMode> mode = ValueNotifier(WhiteNoiseMode.off);
 
-  AudioPlayer? _player;
   StreamSubscription<bool>? _wiredSub;
   bool _wiredConnected = false;
+  bool _running = false;
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -38,8 +44,9 @@ class WhiteNoiseService {
       orElse: () => WhiteNoiseMode.off,
     );
     if (mode.value != WhiteNoiseMode.off) {
-      await _activate();
+      _listenWiredRoute();
     }
+    await _applyState();
   }
 
   Future<void> setMode(WhiteNoiseMode newMode) async {
@@ -49,55 +56,45 @@ class WhiteNoiseService {
     await prefs.setString(_kWhiteNoiseModePrefKey, newMode.name);
 
     if (newMode == WhiteNoiseMode.off) {
-      await _deactivate();
-    } else {
-      if (wasOff) await _activate();
-      _applyState();
+      await _wiredSub?.cancel();
+      _wiredSub = null;
+    } else if (wasOff) {
+      _listenWiredRoute();
     }
+    await _applyState();
   }
 
-  Future<void> _activate() async {
-    if (_player != null) return;
-    final player = AudioPlayer(playerId: 'white_noise');
-    _player = player;
-    await player.setReleaseMode(ReleaseMode.loop);
-    await player.setVolume(0.06);
-    await player.setSource(AssetSource('white_noise.wav'));
-
-    _wiredSub = AudioRouteService.instance.wiredAudioConnected.listen((connected) {
+  void _listenWiredRoute() {
+    _wiredSub ??= AudioRouteService.instance.wiredAudioConnected.listen((connected) {
       _wiredConnected = connected;
       _applyState();
     });
-
-    _applyState();
   }
 
-  Future<void> _deactivate() async {
-    await _wiredSub?.cancel();
-    _wiredSub = null;
-    final player = _player;
-    _player = null;
-    await player?.stop();
-    await player?.dispose();
-  }
-
-  void _applyState() {
-    final player = _player;
-    if (player == null) return;
-    final shouldPlay = switch (mode.value) {
+  Future<void> _applyState() async {
+    final shouldRun = switch (mode.value) {
       WhiteNoiseMode.off => false,
       WhiteNoiseMode.always => true,
       WhiteNoiseMode.wiredOnly => _wiredConnected,
     };
-    if (shouldPlay) {
-      player.resume();
-    } else {
-      player.pause();
+    if (shouldRun == _running) return;
+    _running = shouldRun;
+    try {
+      await _channel.invokeMethod(shouldRun ? 'start' : 'stop');
+    } on MissingPluginException {
+      // Not implemented on this platform (e.g. desktop) — no-op.
+    } on PlatformException {
+      // Native side failed to start/stop the keep-alive — ignore, nothing
+      // audible is at stake and the app's sounds still play normally.
     }
   }
 
   void dispose() {
     _wiredSub?.cancel();
-    _player?.dispose();
+    _wiredSub = null;
+    if (_running) {
+      _running = false;
+      unawaited(_channel.invokeMethod('stop').catchError((_) => null));
+    }
   }
 }

@@ -53,7 +53,14 @@
       "Bash(firebase projects:list *)",
       "Bash(flutterfire configure *)",
       "Bash(flutterfire.bat configure *)",
-      "Bash(./gradlew -q :app:properties)"
+      "Bash(./gradlew -q :app:properties)",
+      "Bash(./gradlew :app:compileDebugKotlin -q)",
+      "Bash(./gradlew :app:compileDebugKotlin --stacktrace)",
+      "Bash(sed -n '1,335p' settings_page.dart)",
+      "Bash(sed -n '336,529p' settings_page.dart)",
+      "Bash(sed -n '530,670p' settings_page.dart)",
+      "Bash(sed -n '671,943p' settings_page.dart)",
+      "Bash(sed -n '944,$p' settings_page.dart)"
     ]
   }
 }

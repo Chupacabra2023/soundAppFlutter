@@ -60,8 +60,10 @@ void main() async {
     return true;
   };
 
-  MobileAds.instance.initialize();
-  _initializeConsent();
+  if (kAdsGloballyEnabled) {
+    MobileAds.instance.initialize();
+    _initializeConsent();
+  }
   AdsService.instance.init();
   WhiteNoiseService.instance.init();
   runApp(const MyApp());
@@ -246,6 +248,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
   bool _isShufflePlay = false; // Shuffle play mode
   double _playbackRate = 1.0;
   int _totalDurationMs = 0; // Celkové trvanie aktuálneho zvuku v ms
+  final Map<String, int> _durationCache = {}; // soundId -> known duration ms
   String _searchQuery = '';
   bool _isSearchOpen = false;
   final TextEditingController _searchController = TextEditingController();
@@ -694,7 +697,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
       if (fadeInMs > 0) {
         _fadeTimer?.cancel();
         final fadeStart = DateTime.now();
-        _fadeTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+        _fadeTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
           if (!mounted) { timer.cancel(); return; }
           final elapsed = DateTime.now().difference(fadeStart).inMilliseconds;
           final progress = (elapsed / fadeInMs).clamp(0.0, 1.0);
@@ -703,11 +706,25 @@ class _SoundboardPageState extends State<SoundboardPage> {
         });
       }
 
+      // audioplayers doesn't always re-fire onDurationChanged when replaying
+      // a source it has already prepared before, which would otherwise leave
+      // the progress slider frozen on repeat plays of the same sound.
+      bool progressStarted = false;
+      final cachedDuration = _durationCache[soundId];
+      if (cachedDuration != null && cachedDuration > 0) {
+        progressStarted = true;
+        _totalDurationMs = cachedDuration;
+        _startFakeProgress(cachedDuration, startMs: startMs, endMs: endMs, fadeOutMs: fadeOutMs, volume: volume);
+      }
+
       durationFuture.then((d) {
         final length = d.inMilliseconds;
         if (length > 0 && mounted && _currentSound == soundId) {
+          _durationCache[soundId] = length;
           _totalDurationMs = length;
-          _startFakeProgress(length, startMs: startMs, endMs: endMs, fadeOutMs: fadeOutMs, volume: volume);
+          if (!progressStarted) {
+            _startFakeProgress(length, startMs: startMs, endMs: endMs, fadeOutMs: fadeOutMs, volume: volume);
+          }
         }
       }).catchError((_) {});
     } catch (e) {
@@ -763,7 +780,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
         fadeOutStarted = true;
         _fadeTimer?.cancel();
         final fadeStart = DateTime.now();
-        _fadeTimer = Timer.periodic(const Duration(milliseconds: 50), (ft) {
+        _fadeTimer = Timer.periodic(const Duration(milliseconds: 100), (ft) {
           if (!mounted) { ft.cancel(); return; }
           final fe = DateTime.now().difference(fadeStart).inMilliseconds;
           final fp = (fe / (fadeOutMs / _playbackRate)).clamp(0.0, 1.0);
@@ -891,7 +908,6 @@ class _SoundboardPageState extends State<SoundboardPage> {
         final fadingSound = _currentSound!;
         setState(() {
           _currentSound = null;
-          _isLooping = false;
           _fadingOutSound = fadingSound;
         });
 
@@ -903,7 +919,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
         // Zachyť referenciu na fade-out player lokálne — timer NIKDY nepoužíva _fadeOutPlayer priamo
         final playerToFade = _fadeOutPlayer!;
         final fadeStart = DateTime.now();
-        _fadeOutTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+        _fadeOutTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
           if (_isDisposed || !mounted) { timer.cancel(); return; }
           final elapsed = DateTime.now().difference(fadeStart).inMilliseconds;
           final progress = (elapsed / _globalFadeOutMs).clamp(0.0, 1.0);
@@ -925,7 +941,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
         oldFadePlayer?.dispose();
         _fadeOutProgressNotifier.value = 0.0;
         _player.stop();
-        if (mounted) setState(() { _currentSound = null; _isLooping = false; _fadingOutSound = null; });
+        if (mounted) setState(() { _currentSound = null; _fadingOutSound = null; });
       }
     } finally {
       _isAudioBusy = false;

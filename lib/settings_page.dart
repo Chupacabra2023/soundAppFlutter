@@ -194,25 +194,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _toolbarToggleRow(
-      IconData icon, String label, bool value, ValueChanged<bool> onChanged) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: Colors.blueGrey[600]),
-          const SizedBox(width: 10),
-          Expanded(child: Text(label, style: const TextStyle(fontSize: 14))),
-          Switch(
-            value: value,
-            activeThumbColor: Colors.blueGrey[800],
-            onChanged: onChanged,
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showColorPicker(BuildContext context, String category) {
     final currentColorValue = _localCategoryColors[category];
     showModalBottomSheet(
@@ -352,235 +333,6 @@ class _SettingsPageState extends State<SettingsPage> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // 🎛️ Display Options Section
-                Card(
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.visibility_outlined,
-                                color: Colors.blueGrey[800]),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    l10n.get('displayOptions'),
-                                    style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    l10n.get('displayOptionsDesc'),
-                                    style: const TextStyle(
-                                        color: Colors.grey, fontSize: 13),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        _buildSubToggle(
-                          icon: Icons.star_border,
-                          title: l10n.get('hideFavoriteButton'),
-                          value: _hideFavorite,
-                          onChanged: (v) {
-                            setState(() => _hideFavorite = v);
-                            widget.onToggleHideFavorite(v);
-                          },
-                        ),
-                        _buildSubToggle(
-                          icon: Icons.settings_outlined,
-                          title: l10n.get('hideSettingsButton'),
-                          value: _hideSettingsBtn,
-                          onChanged: (v) {
-                            setState(() => _hideSettingsBtn = v);
-                            widget.onToggleHideSettingsBtn(v);
-                          },
-                        ),
-                        _buildSubToggle(
-                          icon: Icons.label_off_outlined,
-                          title: l10n.get('hideCategories'),
-                          value: _hideCategories,
-                          onChanged: (v) {
-                            setState(() => _hideCategories = v);
-                            widget.onToggleHideCategories(v);
-                          },
-                        ),
-                        _buildSubToggle(
-                          icon: Icons.speaker_notes_off_outlined,
-                          title: l10n.get('hidePlayback'),
-                          value: _hidePlayback,
-                          onChanged: (v) {
-                            setState(() => _hidePlayback = v);
-                            widget.onToggleHidePlayback(v);
-                          },
-                        ),
-                        _buildSubToggle(
-                          icon: Icons.volume_off,
-                          title: l10n.get('hideVolumeBar'),
-                          value: !_showMasterVolume,
-                          onChanged: (v) {
-                            setState(() => _showMasterVolume = !v);
-                            widget.onToggleToolbarButton('master_volume', !v);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // 🔄 Reset Sounds Section
-                Card(
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.refresh, color: Colors.blueGrey[800]),
-                            const SizedBox(width: 12),
-                            Text(
-                              l10n.get('resetSounds'),
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          l10n.get('resetSoundsDescription'),
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blueGrey[800],
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            onPressed: () async {
-                              final confirm = await showDialog<bool>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  backgroundColor: Colors.white,
-                                  title: Text(
-                                    l10n.get('resetConfirmTitle'),
-                                    style:
-                                        const TextStyle(color: Colors.black87),
-                                  ),
-                                  content: Text(
-                                    l10n.get('resetConfirmMessage'),
-                                    style:
-                                        const TextStyle(color: Colors.black87),
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, false),
-                                      child: Text(l10n.get('cancel'),
-                                          style: const TextStyle(
-                                              color: Colors.black54)),
-                                    ),
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.blueGrey[800],
-                                        foregroundColor: Colors.white,
-                                      ),
-                                      onPressed: () =>
-                                          Navigator.pop(context, true),
-                                      child: Text(l10n.get('reset')),
-                                    ),
-                                  ],
-                                ),
-                              );
-
-                              if (confirm == true) {
-                                widget.onResetSounds();
-                                if (mounted) Navigator.pop(context);
-                              }
-                            },
-                            icon: const Icon(Icons.refresh),
-                            label: Text(l10n.get('resetToDefault')),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red[700],
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            onPressed: () async {
-                              final confirm = await showDialog<bool>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  backgroundColor: Colors.white,
-                                  title: Text(
-                                    l10n.get('deleteAllConfirmTitle'),
-                                    style:
-                                        const TextStyle(color: Colors.black87),
-                                  ),
-                                  content: Text(
-                                    l10n.get('deleteAllConfirmMessage'),
-                                    style:
-                                        const TextStyle(color: Colors.black87),
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, false),
-                                      child: Text(l10n.get('cancel'),
-                                          style: const TextStyle(
-                                              color: Colors.black54)),
-                                    ),
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.red[700],
-                                        foregroundColor: Colors.white,
-                                      ),
-                                      onPressed: () =>
-                                          Navigator.pop(context, true),
-                                      child: Text(l10n.get('deleteAll')),
-                                    ),
-                                  ],
-                                ),
-                              );
-
-                              if (confirm == true) {
-                                widget.onDeleteAllSounds();
-                                if (mounted) Navigator.pop(context);
-                              }
-                            },
-                            icon: const Icon(Icons.delete_forever),
-                            label: Text(l10n.get('deleteAllSounds')),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
                 // 📂 Manage Categories Section
                 Card(
                   elevation: 2,
@@ -854,7 +606,236 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // 🎛️ Toolbar Buttons Section
+                // 🔄 Reset Sounds Section
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.refresh, color: Colors.blueGrey[800]),
+                            const SizedBox(width: 12),
+                            Text(
+                              l10n.get('resetSounds'),
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          l10n.get('resetSoundsDescription'),
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blueGrey[800],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  backgroundColor: Colors.white,
+                                  title: Text(
+                                    l10n.get('resetConfirmTitle'),
+                                    style:
+                                        const TextStyle(color: Colors.black87),
+                                  ),
+                                  content: Text(
+                                    l10n.get('resetConfirmMessage'),
+                                    style:
+                                        const TextStyle(color: Colors.black87),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: Text(l10n.get('cancel'),
+                                          style: const TextStyle(
+                                              color: Colors.black54)),
+                                    ),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blueGrey[800],
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      child: Text(l10n.get('reset')),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (confirm == true) {
+                                widget.onResetSounds();
+                                if (mounted) Navigator.pop(context);
+                              }
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: Text(l10n.get('resetToDefault')),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red[700],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  backgroundColor: Colors.white,
+                                  title: Text(
+                                    l10n.get('deleteAllConfirmTitle'),
+                                    style:
+                                        const TextStyle(color: Colors.black87),
+                                  ),
+                                  content: Text(
+                                    l10n.get('deleteAllConfirmMessage'),
+                                    style:
+                                        const TextStyle(color: Colors.black87),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: Text(l10n.get('cancel'),
+                                          style: const TextStyle(
+                                              color: Colors.black54)),
+                                    ),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red[700],
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      child: Text(l10n.get('deleteAll')),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (confirm == true) {
+                                widget.onDeleteAllSounds();
+                                if (mounted) Navigator.pop(context);
+                              }
+                            },
+                            icon: const Icon(Icons.delete_forever),
+                            label: Text(l10n.get('deleteAllSounds')),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // 🎛️ Display Options Section
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.visibility_outlined,
+                                color: Colors.blueGrey[800]),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    l10n.get('displayOptions'),
+                                    style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    l10n.get('displayOptionsDesc'),
+                                    style: const TextStyle(
+                                        color: Colors.grey, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        _buildSubToggle(
+                          icon: Icons.star_border,
+                          title: l10n.get('hideFavoriteButton'),
+                          value: _hideFavorite,
+                          onChanged: (v) {
+                            setState(() => _hideFavorite = v);
+                            widget.onToggleHideFavorite(v);
+                          },
+                        ),
+                        _buildSubToggle(
+                          icon: Icons.settings_outlined,
+                          title: l10n.get('hideSettingsButton'),
+                          value: _hideSettingsBtn,
+                          onChanged: (v) {
+                            setState(() => _hideSettingsBtn = v);
+                            widget.onToggleHideSettingsBtn(v);
+                          },
+                        ),
+                        _buildSubToggle(
+                          icon: Icons.label_off_outlined,
+                          title: l10n.get('hideCategories'),
+                          value: _hideCategories,
+                          onChanged: (v) {
+                            setState(() => _hideCategories = v);
+                            widget.onToggleHideCategories(v);
+                          },
+                        ),
+                        _buildSubToggle(
+                          icon: Icons.speaker_notes_off_outlined,
+                          title: l10n.get('hidePlayback'),
+                          value: _hidePlayback,
+                          onChanged: (v) {
+                            setState(() => _hidePlayback = v);
+                            widget.onToggleHidePlayback(v);
+                          },
+                        ),
+                        _buildSubToggle(
+                          icon: Icons.volume_off,
+                          title: l10n.get('hideVolumeBar'),
+                          value: !_showMasterVolume,
+                          onChanged: (v) {
+                            setState(() => _showMasterVolume = !v);
+                            widget.onToggleToolbarButton('master_volume', !v);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // 🎛️ Toolbar Buttons Section (same Hide-X logic as Display Options above)
                 Card(
                   elevation: 2,
                   child: Padding(
@@ -889,45 +870,70 @@ class _SettingsPageState extends State<SettingsPage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        _toolbarToggleRow(
-                            Icons.search, l10n.get('searchSounds'), _showSearch,
-                            (v) {
-                          setState(() => _showSearch = v);
-                          widget.onToggleToolbarButton('search', v);
-                        }),
-                        _toolbarToggleRow(
-                            Icons.loop, l10n.get('loop'), _showLoop, (v) {
-                          setState(() => _showLoop = v);
-                          widget.onToggleToolbarButton('loop', v);
-                        }),
-                        _toolbarToggleRow(
-                            Icons.speed, l10n.get('playbackSpeed'), _showSpeed,
-                            (v) {
-                          setState(() => _showSpeed = v);
-                          widget.onToggleToolbarButton('speed', v);
-                        }),
-                        _toolbarToggleRow(Icons.shuffle,
-                            l10n.get('shufflePlay'), _showShuffle, (v) {
-                          setState(() => _showShuffle = v);
-                          widget.onToggleToolbarButton('shuffle', v);
-                        }),
-                        _toolbarToggleRow(
-                            Icons.add, l10n.get('addSound'), _showAdd, (v) {
-                          setState(() => _showAdd = v);
-                          widget.onToggleToolbarButton('add', v);
-                        }),
-                        _toolbarToggleRow(
-                            Icons.delete, l10n.get('deleteMode'), _showDelete,
-                            (v) {
-                          setState(() => _showDelete = v);
-                          widget.onToggleToolbarButton('delete', v);
-                        }),
-                        _toolbarToggleRow(Icons.dark_mode, l10n.get('darkMode'),
-                            _showDarkMode, (v) {
-                          setState(() => _showDarkMode = v);
-                          widget.onToggleToolbarButton('darkmode', v);
-                        }),
+                        const SizedBox(height: 4),
+                        _buildSubToggle(
+                          icon: Icons.search,
+                          title: l10n.get('hideSearch'),
+                          value: !_showSearch,
+                          onChanged: (v) {
+                            setState(() => _showSearch = !v);
+                            widget.onToggleToolbarButton('search', !v);
+                          },
+                        ),
+                        _buildSubToggle(
+                          icon: Icons.loop,
+                          title: l10n.get('hideLoop'),
+                          value: !_showLoop,
+                          onChanged: (v) {
+                            setState(() => _showLoop = !v);
+                            widget.onToggleToolbarButton('loop', !v);
+                          },
+                        ),
+                        _buildSubToggle(
+                          icon: Icons.speed,
+                          title: l10n.get('hideSpeed'),
+                          value: !_showSpeed,
+                          onChanged: (v) {
+                            setState(() => _showSpeed = !v);
+                            widget.onToggleToolbarButton('speed', !v);
+                          },
+                        ),
+                        _buildSubToggle(
+                          icon: Icons.shuffle,
+                          title: l10n.get('hideShuffle'),
+                          value: !_showShuffle,
+                          onChanged: (v) {
+                            setState(() => _showShuffle = !v);
+                            widget.onToggleToolbarButton('shuffle', !v);
+                          },
+                        ),
+                        _buildSubToggle(
+                          icon: Icons.add,
+                          title: l10n.get('hideAdd'),
+                          value: !_showAdd,
+                          onChanged: (v) {
+                            setState(() => _showAdd = !v);
+                            widget.onToggleToolbarButton('add', !v);
+                          },
+                        ),
+                        _buildSubToggle(
+                          icon: Icons.delete,
+                          title: l10n.get('hideDelete'),
+                          value: !_showDelete,
+                          onChanged: (v) {
+                            setState(() => _showDelete = !v);
+                            widget.onToggleToolbarButton('delete', !v);
+                          },
+                        ),
+                        _buildSubToggle(
+                          icon: Icons.dark_mode,
+                          title: l10n.get('hideDarkMode'),
+                          value: !_showDarkMode,
+                          onChanged: (v) {
+                            setState(() => _showDarkMode = !v);
+                            widget.onToggleToolbarButton('darkmode', !v);
+                          },
+                        ),
                       ],
                     ),
                   ),
