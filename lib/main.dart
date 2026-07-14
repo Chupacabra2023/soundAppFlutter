@@ -24,6 +24,8 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'ads_service.dart';
 import 'white_noise_service.dart';
 import 'firebase_options.dart';
+import 'rate_app_service.dart';
+import 'rate_app_banner.dart';
 
 const _exportChannel = MethodChannel('sk.marcelsotak.soundboard/export');
 
@@ -231,6 +233,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
   BannerAd? _bannerAd;
   bool _isBannerAdLoaded = false;
+
+  bool _showRateBanner = false;
 
   AudioPlayer _player = AudioPlayer();
   AudioPlayer? _fadeOutPlayer;
@@ -508,6 +512,24 @@ class _SoundboardPageState extends State<SoundboardPage> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
     }
     AdsService.instance.adsRemoved.addListener(_onAdsRemovedChanged);
+    _checkRateBanner();
+  }
+
+  Future<void> _checkRateBanner() async {
+    final shouldShow = await RateAppService.instance.shouldShowBanner();
+    if (shouldShow && mounted) {
+      setState(() => _showRateBanner = true);
+    }
+  }
+
+  void _onRateBannerRate(int stars) {
+    RateAppService.instance.rate();
+    setState(() => _showRateBanner = false);
+  }
+
+  void _onRateBannerDismiss() {
+    RateAppService.instance.dismissBanner();
+    setState(() => _showRateBanner = false);
   }
 
   void _onAdsRemovedChanged() {
@@ -526,9 +548,13 @@ class _SoundboardPageState extends State<SoundboardPage> {
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (ad) {
+          debugPrint('[BannerAd] loaded');
           if (mounted) setState(() => _isBannerAdLoaded = true);
         },
-        onAdFailedToLoad: (ad, error) => ad.dispose(),
+        onAdFailedToLoad: (ad, error) {
+          debugPrint('[BannerAd] failed to load: $error');
+          ad.dispose();
+        },
       ),
     )..load();
   }
@@ -2033,6 +2059,20 @@ class _SoundboardPageState extends State<SoundboardPage> {
                     ),
                   ),
                 ),
+              ),
+            ),
+
+          // Small dismissible "rate this app" banner — sits above the ad
+          // banner (if any) so it never covers it.
+          if (_showRateBanner)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: (_isBannerAdLoaded && _bannerAd != null) ? _bannerAd!.size.height.toDouble() : 0,
+              child: RateAppBanner(
+                message: l10n.get('rateAppBannerMessage'),
+                onRate: _onRateBannerRate,
+                onDismiss: _onRateBannerDismiss,
               ),
             ),
         ],

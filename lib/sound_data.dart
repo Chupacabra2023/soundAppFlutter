@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 // Data version - zvýš toto číslo keď zmeníš defaultné zvuky
 // Aplikácia automaticky resetuje zvuky pri zmene verzie
-const int DATA_VERSION = 13;
+const int DATA_VERSION = 14;
 
 // 🎨 Globálna paleta farieb pre tlačidlá (použitá v SoundButton a AddSoundPage)
 const List<Color> kColorPalette = [
@@ -328,6 +328,28 @@ final assetSoundFiles = [
   'you_are_not_fine.mp3',
   'you_kinda_smell.mp3',
   'your-phone-is-ringing-pick-it-up-now.mp3',
+
+  // New sounds
+  '20th-century-fox-fanfare.mp3',
+  'chicken-on-tree-screaming.mp3',
+  'fahhh.mp3',
+  'goo-goo-gaga.mp3',
+  'let-it-happen.mp3',
+  'reel-audio.mp3',
+  'wake-up-samurai-cyberpunk.mp3',
+  'why-we-still-here-just-to-suffer.mp3',
+  'ankara-messi-best-sound.mp3',
+  'auughhh.mp3',
+  'bark-fart.mp3',
+  'dictator-mbappe-meme.mp3',
+  'disappear-scream.mp3',
+  'fnaf-2-hallway-ambience.mp3',
+  'du-bist-gut-genug.mp3',
+  'germany-boom-sounds.mp3',
+  'itachi-voice.mp3',
+  'just-sans-talking.mp3',
+  'michael-jackson-hee-hee.mp3',
+  'moving-stone.mp3',
 ];
 
 
@@ -625,6 +647,28 @@ final Map<String, List<String>> soundCategories = {
   'yooooooooooooooooooooooooo_4_objp8XX.mp3': ['meme'], // (doplniť)
   'you_are_not_fine.mp3': ['meme'], // (doplniť)
   'you_kinda_smell.mp3': ['meme'], // (doplniť)
+
+  // ========== NEW SOUNDS ==========
+  '20th-century-fox-fanfare.mp3': ['film'],
+  'chicken-on-tree-screaming.mp3': ['meme'],
+  'fahhh.mp3': ['meme'],
+  'goo-goo-gaga.mp3': ['meme'],
+  'let-it-happen.mp3': ['music'],
+  'reel-audio.mp3': ['meme'],
+  'wake-up-samurai-cyberpunk.mp3': ['game'],
+  'why-we-still-here-just-to-suffer.mp3': ['meme'],
+  'ankara-messi-best-sound.mp3': ['meme'],
+  'auughhh.mp3': ['meme'],
+  'bark-fart.mp3': ['meme'],
+  'dictator-mbappe-meme.mp3': ['meme'],
+  'disappear-scream.mp3': ['meme'],
+  'fnaf-2-hallway-ambience.mp3': ['game'],
+  'du-bist-gut-genug.mp3': ['meme'],
+  'germany-boom-sounds.mp3': ['meme'],
+  'itachi-voice.mp3': ['meme'],
+  'just-sans-talking.mp3': ['game'],
+  'michael-jackson-hee-hee.mp3': ['meme'],
+  'moving-stone.mp3': ['meme'],
 };
 
 // Helper function for color generation

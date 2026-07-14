@@ -60,7 +60,9 @@
       "Bash(sed -n '336,529p' settings_page.dart)",
       "Bash(sed -n '530,670p' settings_page.dart)",
       "Bash(sed -n '671,943p' settings_page.dart)",
-      "Bash(sed -n '944,$p' settings_page.dart)"
+      "Bash(sed -n '944,$p' settings_page.dart)",
+      "Bash(python3 -)",
+      "Bash(awk '/^final assetSoundFiles = \\\\[/{start=NR} start && /^\\\\];/{print NR; exit}' lib/sound_data.dart)"
     ]
   }
 }
