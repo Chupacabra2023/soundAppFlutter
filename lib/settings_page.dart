@@ -29,6 +29,7 @@ class SettingsPage extends StatefulWidget {
   final bool hideSettingsBtn;
   final Function(bool) onToggleHideSettingsBtn;
   final bool showSearch;
+  final bool showSort;
   final bool showLoop;
   final bool showSpeed;
   final bool showShuffle;
@@ -65,6 +66,7 @@ class SettingsPage extends StatefulWidget {
     required this.hideSettingsBtn,
     required this.onToggleHideSettingsBtn,
     required this.showSearch,
+    required this.showSort,
     required this.showLoop,
     required this.showSpeed,
     required this.showShuffle,
@@ -92,6 +94,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool _hideFavorite;
   late bool _hideSettingsBtn;
   late bool _showSearch;
+  late bool _showSort;
   late bool _showLoop;
   late bool _showSpeed;
   late bool _showShuffle;
@@ -101,6 +104,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool _showMasterVolume;
   late int _globalFadeInMs;
   late int _globalFadeOutMs;
+  late final TextEditingController _fadeInController;
+  late final TextEditingController _fadeOutController;
   bool _isExporting = false;
   bool _isImporting = false;
   BannerAd? _bannerAd;
@@ -117,6 +122,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _hideFavorite = widget.hideFavorite;
     _hideSettingsBtn = widget.hideSettingsBtn;
     _showSearch = widget.showSearch;
+    _showSort = widget.showSort;
     _showLoop = widget.showLoop;
     _showSpeed = widget.showSpeed;
     _showShuffle = widget.showShuffle;
@@ -126,6 +132,10 @@ class _SettingsPageState extends State<SettingsPage> {
     _showMasterVolume = widget.showMasterVolume;
     _globalFadeInMs = widget.globalFadeInMs;
     _globalFadeOutMs = widget.globalFadeOutMs;
+    _fadeInController =
+        TextEditingController(text: (_globalFadeInMs / 1000).toStringAsFixed(1));
+    _fadeOutController =
+        TextEditingController(text: (_globalFadeOutMs / 1000).toStringAsFixed(1));
     if (AdsService.instance.shouldShowAds) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
     }
@@ -164,6 +174,8 @@ class _SettingsPageState extends State<SettingsPage> {
   void dispose() {
     AdsService.instance.adsRemoved.removeListener(_onAdsRemovedChanged);
     _bannerAd?.dispose();
+    _fadeInController.dispose();
+    _fadeOutController.dispose();
     super.dispose();
   }
 
@@ -908,6 +920,15 @@ class _SettingsPageState extends State<SettingsPage> {
                           },
                         ),
                         _buildSubToggle(
+                          icon: Icons.sort,
+                          title: l10n.get('hideSort'),
+                          value: !_showSort,
+                          onChanged: (v) {
+                            setState(() => _showSort = !v);
+                            widget.onToggleToolbarButton('sort', !v);
+                          },
+                        ),
+                        _buildSubToggle(
                           icon: Icons.add,
                           title: l10n.get('hideAdd'),
                           value: !_showAdd,
@@ -1110,6 +1131,8 @@ class _SettingsPageState extends State<SettingsPage> {
                                           setState(
                                               () => _globalFadeInMs = newVal);
                                           widget.onSetGlobalFadeIn(newVal);
+                                          _fadeInController.text =
+                                              (newVal / 1000).toStringAsFixed(1);
                                         },
                                       ),
                                       const SizedBox(width: 4),
@@ -1136,15 +1159,43 @@ class _SettingsPageState extends State<SettingsPage> {
                                                   _globalFadeInMs = v.toInt());
                                               widget
                                                   .onSetGlobalFadeIn(v.toInt());
+                                              _fadeInController.text =
+                                                  (v.toInt() / 1000)
+                                                      .toStringAsFixed(1);
                                             },
                                           ),
                                         ),
                                         SizedBox(
-                                          width: 42,
-                                          child: Text(
-                                            '${(_globalFadeInMs / 1000).toStringAsFixed(1)}s',
+                                          width: 56,
+                                          child: TextField(
+                                            controller: _fadeInController,
+                                            keyboardType:
+                                                const TextInputType
+                                                    .numberWithOptions(
+                                                    decimal: true),
+                                            textAlign: TextAlign.center,
                                             style:
                                                 const TextStyle(fontSize: 13),
+                                            decoration: const InputDecoration(
+                                              suffixText: 's',
+                                              isDense: true,
+                                              contentPadding:
+                                                  EdgeInsets.symmetric(
+                                                      vertical: 4,
+                                                      horizontal: 4),
+                                              border: OutlineInputBorder(),
+                                            ),
+                                            onChanged: (val) {
+                                              final secs = double.tryParse(
+                                                  val.replaceAll(',', '.'));
+                                              if (secs == null) return;
+                                              final ms = (secs * 1000)
+                                                  .round()
+                                                  .clamp(100, 5000);
+                                              setState(
+                                                  () => _globalFadeInMs = ms);
+                                              widget.onSetGlobalFadeIn(ms);
+                                            },
                                           ),
                                         ),
                                       ],
@@ -1168,6 +1219,8 @@ class _SettingsPageState extends State<SettingsPage> {
                                           setState(
                                               () => _globalFadeOutMs = newVal);
                                           widget.onSetGlobalFadeOut(newVal);
+                                          _fadeOutController.text =
+                                              (newVal / 1000).toStringAsFixed(1);
                                         },
                                       ),
                                       const SizedBox(width: 4),
@@ -1194,15 +1247,43 @@ class _SettingsPageState extends State<SettingsPage> {
                                                   _globalFadeOutMs = v.toInt());
                                               widget.onSetGlobalFadeOut(
                                                   v.toInt());
+                                              _fadeOutController.text =
+                                                  (v.toInt() / 1000)
+                                                      .toStringAsFixed(1);
                                             },
                                           ),
                                         ),
                                         SizedBox(
-                                          width: 42,
-                                          child: Text(
-                                            '${(_globalFadeOutMs / 1000).toStringAsFixed(1)}s',
+                                          width: 56,
+                                          child: TextField(
+                                            controller: _fadeOutController,
+                                            keyboardType:
+                                                const TextInputType
+                                                    .numberWithOptions(
+                                                    decimal: true),
+                                            textAlign: TextAlign.center,
                                             style:
                                                 const TextStyle(fontSize: 13),
+                                            decoration: const InputDecoration(
+                                              suffixText: 's',
+                                              isDense: true,
+                                              contentPadding:
+                                                  EdgeInsets.symmetric(
+                                                      vertical: 4,
+                                                      horizontal: 4),
+                                              border: OutlineInputBorder(),
+                                            ),
+                                            onChanged: (val) {
+                                              final secs = double.tryParse(
+                                                  val.replaceAll(',', '.'));
+                                              if (secs == null) return;
+                                              final ms = (secs * 1000)
+                                                  .round()
+                                                  .clamp(100, 5000);
+                                              setState(
+                                                  () => _globalFadeOutMs = ms);
+                                              widget.onSetGlobalFadeOut(ms);
+                                            },
                                           ),
                                         ),
                                       ],
@@ -1495,58 +1576,62 @@ class _SettingsPageState extends State<SettingsPage> {
 
                 const SizedBox(height: 16),
 
-                // 🔒 Privacy Settings Section
-                Card(
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.privacy_tip,
-                                color: Colors.blueGrey[800]),
-                            const SizedBox(width: 12),
-                            Text(
-                              l10n.get('privacySettings'),
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                // 🔒 Privacy Settings Section — hidden while ads are globally
+                // disabled, since the consent SDK is then never initialized
+                // (see main.dart) and the button would never do anything.
+                if (kAdsGloballyEnabled)
+                  Card(
+                    elevation: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.privacy_tip,
+                                  color: Colors.blueGrey[800]),
+                              const SizedBox(width: 12),
+                              Text(
+                                l10n.get('privacySettings'),
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          l10n.get('privacySettingsDesc'),
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blueGrey[800],
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            onPressed: () {
-                              ConsentForm.showPrivacyOptionsForm((formError) {
-                                if (formError != null) {
-                                  debugPrint(
-                                      'Privacy form error: ${formError.message}');
-                                }
-                              });
-                            },
-                            icon: const Icon(Icons.settings),
-                            label: Text(l10n.get('managePrivacy')),
+                            ],
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 12),
+                          Text(
+                            l10n.get('privacySettingsDesc'),
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blueGrey[800],
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                              onPressed: () {
+                                ConsentForm.showPrivacyOptionsForm((formError) {
+                                  if (formError != null) {
+                                    debugPrint(
+                                        'Privacy form error: ${formError.message}');
+                                  }
+                                });
+                              },
+                              icon: const Icon(Icons.settings),
+                              label: Text(l10n.get('managePrivacy')),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
 
                 const SizedBox(height: 16),
 

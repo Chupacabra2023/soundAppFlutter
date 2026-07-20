@@ -9,7 +9,7 @@ const String _kAdsRemovedPrefKey = 'ads_removed';
 /// Master kill switch for ads. Flip to `false` and rebuild to hide ads
 /// everywhere (e.g. while an AdMob issue is being investigated), regardless
 /// of purchase state.
-const bool kAdsGloballyEnabled = true;
+const bool kAdsGloballyEnabled = false;
 
 /// Single source of truth for "has the user bought Remove Ads" across the app.
 /// Every screen that shows a banner ad checks [shouldShowAds] before loading

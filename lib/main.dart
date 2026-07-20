@@ -264,6 +264,10 @@ class _SoundboardPageState extends State<SoundboardPage> {
   bool _hideSettings = false;
   bool _hapticFeedback = true;
   bool _showSearch = true;
+  bool _showSort = true;
+  // 'manual' = poradie z drag&drop (nikdy sa neprepisuje triedením), inak
+  // jedna z hodnôt 'alpha_asc'/'alpha_desc'/'length_asc'/'length_desc'/'date_asc'/'date_desc'.
+  String _currentSortMode = 'manual';
   bool _showLoop = true;
   bool _showSpeed = true;
   bool _showShuffle = true;
@@ -306,7 +310,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
     }
   }
 
-  Future<void> loadSoundsFromStorage() async {
+  Future<void> loadSoundsFromStorage({bool isImport = false}) async {
     try {
       final dir = await getApplicationDocumentsDirectory();
       final file = File('${dir.path}/sounds.json');
@@ -317,18 +321,14 @@ class _SoundboardPageState extends State<SoundboardPage> {
           // jsonDecode s veľkým JSON blokuje main thread — presun do isolate
           final data = await compute(_decodeJson, content);
 
-          // Skontroluj verziu dát
+          // Skontroluj verziu dát (len informatívne — už podľa nej nič nezmazávame,
+          // aby sa nikdy nestratili vlastné pridané/importované zvuky používateľa).
           final savedVersion = data['version'] ?? 1;
-
           if (savedVersion != DATA_VERSION) {
-            debugPrint('Data version mismatch! Saved: $savedVersion, Current: $DATA_VERSION');
-            debugPrint('Resetting to default sounds with new version...');
-            // Verzia sa zmenila - načítaj nové defaulty
-            await _initializeSounds();
-            return;
+            debugPrint('Data version differs: saved=$savedVersion current=$DATA_VERSION — keeping existing sounds as-is.');
           }
 
-          // Verzia sedí - načítaj uložené zvuky
+          // Načítaj uložené zvuky
           final soundsList = data['sounds'] ?? data; // Backward compatibility
           final loadedList = List<Map<String, dynamic>>.from(soundsList is List ? soundsList : []);
           // Migrate sounds missing 'id' field (backward compatibility)
@@ -337,15 +337,16 @@ class _SoundboardPageState extends State<SoundboardPage> {
             if (loadedList[i]['id'] == null) {
               loadedList[i]['id'] = 'migrated_${migrationBase + i}';
             }
+            // Staré/importované zvuky nemusia mať dátum pridania — dopočítaj ho,
+            // aby triedenie podľa dátumu malo s čím pracovať (zhluknú sa spolu).
+            if (loadedList[i]['dateAddedMs'] == null) {
+              loadedList[i]['dateAddedMs'] = migrationBase + i;
+            }
           }
           final savedCategories = data['categories'];
           final savedCategoryColors = data['categoryColors'];
-          final prefs = await SharedPreferences.getInstance();
-          final hasCustomOrder = prefs.getBool('custom_sound_order') ?? false;
-          if (!hasCustomOrder) {
-            loadedList.sort((a, b) => (a['title'] ?? '').toString().toLowerCase()
-                .compareTo((b['title'] ?? '').toString().toLowerCase()));
-          }
+          // Poradie zo súboru/importu sa berie tak, ako je — triedenie je len
+          // dočasný zobrazovací režim (_currentSortMode), nikdy nemení toto pole.
           setState(() {
             sounds
               ..clear()
@@ -358,12 +359,21 @@ class _SoundboardPageState extends State<SoundboardPage> {
             }
           });
           debugPrint('Loaded ${sounds.length} sounds from JSON (version: $savedVersion)');
+
+          if (savedVersion != DATA_VERSION) {
+            // Prepíš sounds.json s aktuálnou DATA_VERSION, aby sa nabudúce
+            // nepovažovalo za "iné" a zbytočne to znova nezapisovalo.
+            await saveSoundsToStorage();
+          }
         }
       } else {
         debugPrint('sounds.json does not exist');
       }
     } catch (e) {
       debugPrint('Error loading sounds from storage: $e - will try to initialize defaults');
+      if (isImport) {
+        rethrow;
+      }
       await _initializeSounds();
     }
   }
@@ -440,8 +450,9 @@ class _SoundboardPageState extends State<SoundboardPage> {
         ..clear()
         ..addAll(defaultSounds.map((sound) {
           // Deep copy každého zvuku, aby sme nemodifikovali originálne defaultSounds
+          final ts = idBase + idCounter++;
           return {
-            'id': 'def_${idBase + idCounter++}',
+            'id': 'def_$ts',
             'name': sound['name'],
             'title': sound['title'],
             'categories': List<String>.from(sound['categories'] ?? []),
@@ -450,6 +461,8 @@ class _SoundboardPageState extends State<SoundboardPage> {
             'startMs': sound['startMs'] ?? 0,
             'endMs': sound['endMs'],
             'volume': (sound['volume'] as num?)?.toDouble() ?? 1.0,
+            'dateAddedMs': ts,
+            'durationMs': null,
           };
         }));
 
@@ -471,9 +484,45 @@ class _SoundboardPageState extends State<SoundboardPage> {
     }
   }
 
+  bool _isBackfillingDurations = false;
+
+  // Reálna dĺžka zvuku sa nikde neuklada (endMs je pri netrimnutých zvukoch
+  // null) — pri prvej príležitosti ju zistíme z audio súboru a uložíme, aby
+  // triedenie podľa dĺžky bolo odvtedy okamžité bez opakovaného prehľadávania.
+  Future<void> _backfillMissingDurations() async {
+    if (_isBackfillingDurations) return;
+    final missing = sounds.where((s) => s['durationMs'] == null).toList();
+    if (missing.isEmpty) return;
+    _isBackfillingDurations = true;
+    final dir = await getApplicationDocumentsDirectory();
+    final probePlayer = AudioPlayer();
+    var changed = false;
+    for (final sound in missing) {
+      try {
+        final path = '${dir.path}/${sound['name']}';
+        if (!await File(path).exists()) continue;
+        await probePlayer.setSource(DeviceFileSource(path));
+        final duration = await probePlayer.getDuration();
+        if (duration != null && duration.inMilliseconds > 0) {
+          sound['durationMs'] = duration.inMilliseconds;
+          changed = true;
+        }
+      } catch (e) {
+        debugPrint('Duration probe failed for ${sound['name']}: $e');
+      }
+    }
+    await probePlayer.dispose();
+    _isBackfillingDurations = false;
+    if (changed && mounted) {
+      setState(() {});
+      _updateFilteredSounds();
+      await saveSoundsToStorage();
+    }
+  }
+
   // ✅ Optimalizovaná funkcia - aktualizuje cache namiesto toho aby počítala zakaždým
   void _updateFilteredSounds() {
-    _cachedFilteredSounds = sounds.where((sound) {
+    final filtered = sounds.where((sound) {
       // Kategória filter - zobraz ak je 'everything' alebo zvuk má aspoň jednu zvolenú kategóriu
       if (!_selectedCategories.contains('everything')) {
         final categories = List<String>.from(sound['categories'] ?? []);
@@ -488,6 +537,12 @@ class _SoundboardPageState extends State<SoundboardPage> {
 
       return true;
     }).toList();
+
+    // Triedenie je len dočasný pohľad — 'sounds' (ručné poradie) sa tu nikdy nemení.
+    if (_currentSortMode != 'manual') {
+      filtered.sort((a, b) => _compareSounds(a, b, _currentSortMode));
+    }
+    _cachedFilteredSounds = filtered;
   }
 
   void _onReorder(int oldIndex, int newIndex) {
@@ -500,8 +555,51 @@ class _SoundboardPageState extends State<SoundboardPage> {
       sounds.insert(newSoundsIndex, item);
     });
     _updateFilteredSounds();
-    SharedPreferences.getInstance().then((prefs) => prefs.setBool('custom_sound_order', true));
     saveSoundsToStorage();
+  }
+
+  void _showSortLockedMessage() {
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.get('sortLockedMessage'))),
+    );
+  }
+
+  int _compareNullableInt(int? a, int? b, bool ascending) {
+    if (a == null && b == null) return 0;
+    if (a == null) return 1; // neznáme hodnoty na koniec, bez ohľadu na smer
+    if (b == null) return -1;
+    return ascending ? a.compareTo(b) : b.compareTo(a);
+  }
+
+  int _compareSounds(Map<String, dynamic> a, Map<String, dynamic> b, String mode) {
+    switch (mode) {
+      case 'alpha_asc':
+        return (a['title'] ?? '').toString().toLowerCase()
+            .compareTo((b['title'] ?? '').toString().toLowerCase());
+      case 'alpha_desc':
+        return (b['title'] ?? '').toString().toLowerCase()
+            .compareTo((a['title'] ?? '').toString().toLowerCase());
+      case 'length_asc':
+        return _compareNullableInt(a['durationMs'], b['durationMs'], true);
+      case 'length_desc':
+        return _compareNullableInt(a['durationMs'], b['durationMs'], false);
+      case 'date_asc':
+        return _compareNullableInt(a['dateAddedMs'], b['dateAddedMs'], true);
+      case 'date_desc':
+        return _compareNullableInt(a['dateAddedMs'], b['dateAddedMs'], false);
+      default:
+        return 0;
+    }
+  }
+
+  // Triedenie je čisto zobrazovací režim — nikdy neprepisuje 'sounds' (ručné
+  // poradie), takže sa dá kedykoľvek bez straty dát vrátiť späť cez 'manual'.
+  void _sortSounds(String mode) {
+    setState(() => _currentSortMode = mode);
+    _updateFilteredSounds();
+    SharedPreferences.getInstance().then((prefs) => prefs.setString('sort_mode', mode));
   }
 
   @override
@@ -568,6 +666,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
       _hideSettings = prefs.getBool('hide_settings_btn') ?? false;
       _hapticFeedback = prefs.getBool('haptic_feedback') ?? true;
       _showSearch = prefs.getBool('show_search') ?? true;
+      _showSort = prefs.getBool('show_sort') ?? true;
       _showLoop = prefs.getBool('show_loop') ?? true;
       _showSpeed = prefs.getBool('show_speed') ?? true;
       _showShuffle = prefs.getBool('show_shuffle') ?? true;
@@ -579,6 +678,17 @@ class _SoundboardPageState extends State<SoundboardPage> {
       if (_masterVolume <= 0) _masterVolume = 1.0;
       _globalFadeInMs = prefs.getInt('global_fade_in_ms') ?? 0;
       _globalFadeOutMs = prefs.getInt('global_fade_out_ms') ?? 0;
+
+      final storedSortMode = prefs.getString('sort_mode');
+      if (storedSortMode != null) {
+        _currentSortMode = storedSortMode;
+      } else {
+        // Migrácia zo starého bool prefu: ak si používateľ už mal ustálené
+        // vlastné poradie, rešpektuj ho; inak zachovaj doterajší default (abecedne).
+        final hadCustomOrder = prefs.getBool('custom_sound_order') ?? false;
+        _currentSortMode = hadCustomOrder ? 'manual' : 'alpha_asc';
+        unawaited(prefs.setString('sort_mode', _currentSortMode));
+      }
     });
     await _checkAndLoadSounds();
     _rebuildCategoriesList();
@@ -663,6 +773,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
     } catch (e) {
       debugPrint('Error checking and loading sounds: $e');
     }
+    unawaited(_backfillMissingDurations());
   }
 
   Future<void> _playSound(String soundId) async {
@@ -698,10 +809,14 @@ class _SoundboardPageState extends State<SoundboardPage> {
       // Subscribe BEFORE play so we never miss an early duration event
       final durationFuture = _player.onDurationChanged.first;
 
+      // Seek na trim start priamo cez play(position:), nie samostatným
+      // unawaited seek() PO štarte — to necháva krátke okno, kde zvuk
+      // počuteľne nabehne od 0:00 a až potom trhnuto skočí na trim bod.
+      final startPosition = startMs > 0 ? Duration(milliseconds: startMs) : null;
       if (await File(filePath).exists()) {
-        await _player.play(DeviceFileSource(filePath));
+        await _player.play(DeviceFileSource(filePath), position: startPosition);
       } else if (name.startsWith('/')) {
-        await _player.play(DeviceFileSource(name));
+        await _player.play(DeviceFileSource(name), position: startPosition);
       } else {
         if (mounted) {
           final l10n = AppLocalizations.of(context);
@@ -715,10 +830,6 @@ class _SoundboardPageState extends State<SoundboardPage> {
       if (!mounted) return;
       setState(() => _currentSound = soundId);
       _progressNotifier.value = 0.0;
-
-      if (startMs > 0) {
-        unawaited(_player.seek(Duration(milliseconds: startMs)));
-      }
 
       if (fadeInMs > 0) {
         _fadeTimer?.cancel();
@@ -1099,10 +1210,11 @@ class _SoundboardPageState extends State<SoundboardPage> {
         }
       }
 
-      await loadSoundsFromStorage();
+      await loadSoundsFromStorage(isImport: true);
       _rebuildCategoriesList();
       _updateFilteredSounds();
       setState(() {});
+      unawaited(_backfillMissingDurations());
     } catch (e) {
       debugPrint('Import error: $e');
       if (mounted) {
@@ -1378,7 +1490,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
     final isLandscape = screenWidth > screenHeight;
     final crossAxisCount = _calculateCrossAxisCount(screenWidth);
     final isTablet = screenWidth >= 600;
-    final visibleLeadingCount = [_showSearch, _showLoop, _showSpeed, _showShuffle, _showAdd].where((b) => b).length;
+    final visibleLeadingCount = [_showSearch, _showSort, _showLoop, _showSpeed, _showShuffle, _showAdd].where((b) => b).length;
     final iconButtonDensity = isLandscape ? VisualDensity.comfortable : VisualDensity.compact;
     final iconSize = isLandscape ? 36.0 : 24.0;
     final appBarHeight = isLandscape ? 80.0 : kToolbarHeight;
@@ -1463,6 +1575,54 @@ class _SoundboardPageState extends State<SoundboardPage> {
               ),
               if (isTablet) const SizedBox(width: 35),
             ],
+            if (_showSort) ...[
+              PopupMenuButton<String>(
+                iconSize: iconSize,
+                icon: const Icon(Icons.sort, color: Colors.white),
+                tooltip: l10n.get('sortSounds'),
+                color: Colors.blueGrey[800],
+                onSelected: _sortSounds,
+                itemBuilder: (context) {
+                  Widget sortLabel(String mode, String label) {
+                    final prefix = _currentSortMode == mode ? '✓ ' : '';
+                    return Text('$prefix$label', style: const TextStyle(color: Colors.white));
+                  }
+
+                  return [
+                    PopupMenuItem(
+                      value: 'manual',
+                      child: sortLabel('manual', l10n.get('sortManual')),
+                    ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: 'alpha_asc',
+                      child: sortLabel('alpha_asc', l10n.get('sortAlphaAsc')),
+                    ),
+                    PopupMenuItem(
+                      value: 'alpha_desc',
+                      child: sortLabel('alpha_desc', l10n.get('sortAlphaDesc')),
+                    ),
+                    PopupMenuItem(
+                      value: 'length_asc',
+                      child: sortLabel('length_asc', l10n.get('sortLengthAsc')),
+                    ),
+                    PopupMenuItem(
+                      value: 'length_desc',
+                      child: sortLabel('length_desc', l10n.get('sortLengthDesc')),
+                    ),
+                    PopupMenuItem(
+                      value: 'date_asc',
+                      child: sortLabel('date_asc', l10n.get('sortDateAsc')),
+                    ),
+                    PopupMenuItem(
+                      value: 'date_desc',
+                      child: sortLabel('date_desc', l10n.get('sortDateDesc')),
+                    ),
+                  ];
+                },
+              ),
+              if (isTablet) const SizedBox(width: 35),
+            ],
             if (_showAdd) ...[
               IconButton(
                 visualDensity: iconButtonDensity,
@@ -1488,11 +1648,14 @@ class _SoundboardPageState extends State<SoundboardPage> {
                               'volume': volume,
                               'startMs': startMs,
                               'endMs': endMs,
+                              'dateAddedMs': DateTime.now().millisecondsSinceEpoch,
+                              'durationMs': null,
                             });
                           });
                           await saveSoundsToStorage();
                           _rebuildCategoriesList();
                           _updateFilteredSounds();
+                          unawaited(_backfillMissingDurations());
                         },
                       ),
                     ),
@@ -1589,6 +1752,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                       );
                     },
                     showSearch: _showSearch,
+                    showSort: _showSort,
                     showLoop: _showLoop,
                     showSpeed: _showSpeed,
                     showShuffle: _showShuffle,
@@ -1600,6 +1764,7 @@ class _SoundboardPageState extends State<SoundboardPage> {
                       setState(() {
                         switch (key) {
                           case 'search': _showSearch = value;
+                          case 'sort': _showSort = value;
                           case 'loop': _showLoop = value;
                           case 'speed': _showSpeed = value;
                           case 'shuffle': _showShuffle = value;
@@ -1947,7 +2112,11 @@ class _SoundboardPageState extends State<SoundboardPage> {
                     ),
                   )
                       : ReorderableGridView.builder(
-                    onReorder: _isDeleteMode ? (_, __) {} : _onReorder,
+                    onReorder: _isDeleteMode
+                        ? (_, __) {}
+                        : _currentSortMode != 'manual'
+                            ? (_, __) => _showSortLockedMessage()
+                            : _onReorder,
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: crossAxisCount,
                       crossAxisSpacing: 8,
